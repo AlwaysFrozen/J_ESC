@@ -1,0 +1,65 @@
+#ifndef __FLUX_OBSERVER_H__
+#define __FLUX_OBSERVER_H__
+
+#include "stdbool.h"
+#include "stdint.h"
+#include "math.h"
+#include "FOC_Config.h"
+#include "FOC_Motor.h"
+
+typedef struct
+{
+    float value[2];
+} MATH_vec2;
+
+
+typedef struct _PLL_Obj_
+{
+    float Kp;
+    float Ki;
+    float Interg;
+    float Ui;
+    float err;
+    float speed_hz;
+    float speed_hz_f;
+    float theta;
+} PLL_Obj;
+
+typedef struct _OBSERVER_Obj_
+{
+    float rs_ohm;
+    float ls_H;
+    float flux_wb;
+    float dt;
+    float gain;
+
+    float saturation_comp;
+    float I_bus_max;
+
+    float R_I_a;
+    float R_I_b;
+    float flux_a;
+    float flux_b;
+    float flux_s_a;
+    float flux_s_b;
+    float flux_r_a;
+    float flux_r_b;
+    float flux_r_err;
+    float Theta;
+    PLL_Obj pll;
+
+    float E_ang;
+    float E_rps;
+    float E_rpm;
+} FLO_t;
+
+extern FLO_t flo_observer;
+
+
+void FLO_Init(FLO_t *obs);
+void Observer_setPLL(FLO_t *obs, float kp,float ki);
+void Observer_setMotorParams(FLO_t *obs,float rs,float ls,float flux);
+void Observer_setCtrlPeriod(FLO_t *obs,float ts);
+void Observer_setGain(FLO_t *obs,float gain);
+void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para);
+#endif
