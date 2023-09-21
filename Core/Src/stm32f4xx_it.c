@@ -28,6 +28,7 @@
 #include "FOC_Motor.h"
 #include "FOC_Config.h"
 #include "Inverter.h"
+#include "VIS.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -221,11 +222,11 @@ void ADC_IRQHandler(void)
     #if 0
     float fc = Virtual_Moto.electronic_speed_hz * 2;
     fc = _constrain(fc,MIN_LPF_FC,MAX_LPF_FC);
-    LPF_Mult_F32(phase_voltage_f, temp_voltage, 3, fc, 1.0f / Virtual_Moto.sample_freq_now);
-    LPF_Mult_F32(phase_current_f, temp_current, 3, fc, 1.0f / Virtual_Moto.sample_freq_now);
+    LPF_Mult_F32(phase_voltage_f, temp_voltage, 3, fc, Virtual_Moto.dt);
+    LPF_Mult_F32(phase_current_f, temp_current, 3, fc, Virtual_Moto.dt);
     #else
-    LPF_Mult_F32(phase_voltage_f, temp_voltage, 3, MAX_LPF_FC, 1.0f / Virtual_Moto.sample_freq_now);
-    LPF_Mult_F32(phase_current_f, temp_current, 3, MAX_LPF_FC, 1.0f / Virtual_Moto.sample_freq_now);
+    LPF_Mult_F32(phase_voltage_f, temp_voltage, 3, MAX_LPF_FC, Virtual_Moto.dt);
+    LPF_Mult_F32(phase_current_f, temp_current, 3, MAX_LPF_FC, Virtual_Moto.dt);
     #endif
 #endif
 
@@ -239,7 +240,7 @@ void ADC_IRQHandler(void)
 
     if (sensor_calibration_status == Sensor_Calibrated)
     {
-        switch (Moto_Config.moto_type)
+        switch (motor_type_now)
         {
             case BLDC:
                 BLDC_Process();
@@ -255,6 +256,10 @@ void ADC_IRQHandler(void)
             case Single_Phase_Inverter:
             case Three_Phase_Inverter:
                 Inverter_Process();
+                break;
+
+            case VIS:
+                VIS_Process();
                 break;
         }
     }

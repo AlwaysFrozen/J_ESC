@@ -11,15 +11,19 @@
 #include "My_Math.h"
 #include "main.h"
 
+#include "usbd_cdc_if.h"
+
 #define PWM_TIM_BASE_FREQ       (168000000U)
 
 #define MAX_PHASE_CURRENT       (16000)
 
-#define PHASE_VOLTAGE_RATIO     (15.091575f)    // adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) mv
-#define PHASE_CURRENT_RATIO     (8.0586081f)    // (adc_value - 2048) / 4095 * 3300 / 20 / 0.005 ma     //5m ohm
+#define PHASE_VOLTAGE_RATIO     (15.091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) mv
+// #define PHASE_CURRENT_RATIO     (80.586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 ma     //0.5m ohm
+#define PHASE_CURRENT_RATIO     (8.0586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 ma     //5m ohm
+// #define PHASE_CURRENT_RATIO     (2.014652f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.02 ma        //20m ohm
 
 #define MIN_LPF_FC              (200)
-#define MAX_LPF_FC              (5000)
+#define MAX_LPF_FC              (10000)
 
 typedef enum
 {
@@ -28,6 +32,7 @@ typedef enum
     DC,
     Single_Phase_Inverter,
     Three_Phase_Inverter,
+    VIS,
 }MOTOR_Type_t;
 
 // typedef enum
@@ -56,11 +61,21 @@ typedef enum
     MS_Protect,
 }Motor_State_t;
 
+typedef enum
+{
+    Quad_0,
+    Quad_1,
+    Quad_2,
+    Quad_3,
+    Quad_4,
+}Quadrant_t;
+
 typedef struct
 {
     uint8_t is_running;
     Motor_State_t state;
-    uint32_t sample_freq_now;
+    Quadrant_t run_quadrant;
+    float dt;
     float electronic_speed_hz;
     uint32_t V_bus_mv;
     uint32_t V_bus_mv_f;
@@ -75,7 +90,9 @@ typedef struct
     float RPM_filter_rate;
 }Filter_Rate_t;
 
-extern MOTOR_Config_t Moto_Config;
+extern MOTOR_Config_t Motor_Config;
+extern MOTOR_Type_t motor_type_now;
+
 extern Filter_Rate_t Filter_Rate;
 extern Virtual_Motor_t Virtual_Moto;
 

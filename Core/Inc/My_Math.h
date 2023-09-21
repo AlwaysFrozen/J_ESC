@@ -14,14 +14,14 @@ fc = a / (2 * pi * t)
 #define FirstOrder_LPF_Cacl1(sample, value, filter_constant)	    (value -= (filter_constant) * ((value) - (sample)))
 
 #define _sign(a)                    ( ( (a) < 0 )  ?  -1   : ( (a) > 0 ) )
-#define _round(x) ((x)>=0?(long)    ((x)+0.5f):(long)((x)-0.5f))
+#define _round(x)                   ((x)>=0?(long)    ((x)+0.5f):(long)((x)-0.5f))
 #define _constrain(amt,low,high)    ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 #define _isset(a)                   ( (a) != (NOT_SET) )
 #define SQ(x)                       ((x) * (x))
 #define NORM2_f(x,y)                (sqrtf(SQ(x) + SQ(y)))
-#define UTILS_IS_INF(x)             ((x) == (1.0f / 0.0f) || (x) == (-1.0f / 0.0f))
-#define UTILS_IS_NAN(x)             ((x) != (x))
-#define UTILS_NAN_ZERO(x)           (x = UTILS_IS_NAN(x) ? 0.0f : x)
+#define IS_INF(x)                   ((x) == (1.0f / 0.0f) || (x) == (-1.0f / 0.0f))
+#define IS_NAN(x)                   ((x) != (x))
+#define NAN_ZERO(x)                 (x = IS_NAN(x) ? 0.0f : x)
 #define SIGN(x)                     (((x) < 0.0f) ? -1.0f : 1.0f)
 
 #define DEG_TO_RAD(x)   (x / 57.295779f)
@@ -69,12 +69,13 @@ float Max_Abs(float va, float vb);
 float Min_Abs(float va, float vb);
 void Truncate_Number(float *number, float min, float max);
 void Truncate_Number_Abs(float *number, float max);
-
-void quickSort(uint32_t *number,uint32_t first,uint32_t last);
+uint8_t Number_In_Absolute_Range_f32(float num,float base,float range);
+void quickSort(int32_t *number,uint32_t first,uint32_t last);
 void bubbleSort_u8(uint8_t *arr,uint16_t len);
 void bubbleSort_u16(uint16_t *arr,uint16_t len);
+void bubbleSort_i32(int32_t *arr,uint16_t len);
 void bubbleSort_f32(float *arr,uint16_t len);
 void Index_Sort(float *arr,uint16_t len,uint16_t *index_arr);
-uint8_t Number_In_Absolute_Range_f32(float num,float base,float range);
+int32_t Find_Most_Repeated_Element(int32_t arr[], uint32_t len,int32_t *res);
 
 #endif

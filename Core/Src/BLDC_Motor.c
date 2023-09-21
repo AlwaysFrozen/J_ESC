@@ -65,60 +65,6 @@ static const uint32_t filter_value_list[32] =
     0x1fffffff,0x3fffffff,0x7fffffff,0xffffffff,
 };
 
-void Vector_1(uint16_t ARR_value,uint16_t CCR_value)
-{
-    TIM1->ARR = ARR_value;
-    TIM1->CCR1 = CCR_value;
-    TIM1->CCR2 = 0;
-    TIM1->CCR3 = 0;
-    TIM1->CCER |= 0x555;
-}
- 
-void Vector_2(uint16_t ARR_value,uint16_t CCR_value)
-{
-    TIM1->ARR = ARR_value;
-    TIM1->CCR1 = CCR_value;
-    TIM1->CCR2 = CCR_value;
-    TIM1->CCR3 = 0;
-    TIM1->CCER |= 0x555;
-}
-
-void Vector_3(uint16_t ARR_value,uint16_t CCR_value)
-{
-    TIM1->ARR = ARR_value;
-    TIM1->CCR1 = 0;
-    TIM1->CCR2 = CCR_value;
-    TIM1->CCR3 = 0;
-    TIM1->CCER |= 0x555;
-}
-
-void Vector_4(uint16_t ARR_value,uint16_t CCR_value)
-{
-    TIM1->ARR = ARR_value;
-    TIM1->CCR1 = 0;
-    TIM1->CCR2 = CCR_value;
-    TIM1->CCR3 = CCR_value;
-    TIM1->CCER |= 0x555;
-}
-
-void Vector_5(uint16_t ARR_value,uint16_t CCR_value)
-{
-    TIM1->ARR = ARR_value;
-    TIM1->CCR1 = 0;
-    TIM1->CCR2 = 0;
-    TIM1->CCR3 = CCR_value;
-    TIM1->CCER |= 0x555;
-}
-
-void Vector_6(uint16_t ARR_value,uint16_t CCR_value)
-{
-    TIM1->ARR = ARR_value;
-    TIM1->CCR1 = CCR_value;
-    TIM1->CCR2 = 0;
-    TIM1->CCR3 = CCR_value;
-    TIM1->CCER |= 0x555;
-}
-
 void MOS_Q15PWM(uint16_t ARR_value,uint16_t CCR_value)
 {
     TIM1->ARR = ARR_value;
@@ -275,6 +221,7 @@ void Plug_Brake(void)
     }
 }
 
+#if 0
 static void Update_Filter_Value(uint8_t len)
 {
     if(len < 1)
@@ -301,6 +248,7 @@ static void Update_Filter_Value(uint8_t len)
         }
     }
 }
+#endif
 
 static void Update_Filter_Value_Fast(uint8_t len)
 {
@@ -324,7 +272,7 @@ static void HallLess_MOS_Switch(uint8_t step)
     uint16_t CCR = bldc_run.duty;
     uint16_t ARR = bldc_run.TIM1_ARR_now;
 
-    if(Moto_Config.dir == CCW)
+    if(Motor_Config.dir == CCW)
     {
         switch(step)
         {
@@ -439,7 +387,7 @@ static void Hall_MOS_Switch(uint8_t step)
     uint16_t CCR = bldc_run.duty;
     uint16_t ARR = bldc_run.TIM1_ARR_now;
 
-    if(Moto_Config.dir == CCW)
+    if(Motor_Config.dir == CCW)
     {
         switch(step)
         {
@@ -595,7 +543,7 @@ static void VVVF_Process(void)
     }
 
     bldc_run.TIM1_ARR_now = PWM_TIM_BASE_FREQ / 2 / bldc_run.PWM_freq_now;
-    Virtual_Moto.sample_freq_now = bldc_run.PWM_freq_now;
+    Virtual_Moto.dt = 1.0f / bldc_run.PWM_freq_now;
 
     if(bldc_run.duty > (bldc_run.TIM1_ARR_now - 1))
     {
@@ -605,7 +553,7 @@ static void VVVF_Process(void)
 
 static void HallLess_Current_Process(uint8_t step)
 {
-    if(Moto_Config.dir == CCW)
+    if(Motor_Config.dir == CCW)
     {
         switch(step)
         {
@@ -711,7 +659,7 @@ static void HallLess_Current_Process(uint8_t step)
 
 static void Hall_Current_Process(uint8_t step)
 {
-    if(Moto_Config.dir == CCW)
+    if(Motor_Config.dir == CCW)
     {
         switch(step)
         {
@@ -815,9 +763,10 @@ static void Hall_Current_Process(uint8_t step)
     FirstOrder_LPF_Cacl(bldc_run.I_bus_ma,bldc_run.I_bus_ma_f,Filter_Rate.bus_current_filter_rate);
 }
 
+#ifdef VIRTUAL_MID_HALF_PHASE
 static void HallLess_Virtual_Mid_Cal(uint8_t step)
 {
-    if(Moto_Config.dir == CCW)
+    if(Motor_Config.dir == CCW)
     {
         switch(step)
         {
@@ -924,6 +873,7 @@ static void HallLess_Virtual_Mid_Cal(uint8_t step)
 
     FirstOrder_LPF_Cacl(bldc_run.virtual_mid,bldc_run.virtual_mid_f,bldc_ctrl.virtual_mid_filter_rate);
 }
+#endif
 
 void BLDC_Process(void)
 {
@@ -967,7 +917,7 @@ void BLDC_Process(void)
         bldc_run.befm_queue[2] = bldc_run.befm_queue[2] << 1;
 
         // if((bldc_run.run_state == BLDC_Stop || bldc_run.run_state >= BLDC_Brake) && bldc_run.virtual_mid_f < Virtual_Moto.V_bus_mv_f * 0.1f)
-        if((bldc_run.run_state == BLDC_Stop || bldc_run.run_state >= BLDC_Brake) && bldc_run.virtual_mid_f < 100)
+        if(bldc_run.run_state == BLDC_Stop && bldc_run.virtual_mid_f < 100)
         {
             bldc_run.phase_cnt = 0;
             bldc_run.phase_cnt_last = 0;
@@ -1293,7 +1243,7 @@ void BLDC_Process(void)
                     break;
             }
 
-            if(Moto_Config.dir == CCW)
+            if(Motor_Config.dir == CCW)
             {
                 bldc_run.start_step_index = step_seq_ccw[bldc_run.start_index];
             }
@@ -1396,12 +1346,12 @@ void Start_BLDC_Motor(void)
     if(bldc_ctrl.sensor_type == SENSOR_LESS)
     {
         bldc_run.start_seq = BLDC_Start_Order;
-        if(Moto_Config.dir == CCW)
+        if(Motor_Config.dir == CCW)
         {   
             #if ANTI_WIND_STARTUP_ENABLE
             if(bldc_run.eletrical_rpm > 0)
             {
-                bldc_run.dir = Moto_Config.dir;
+                bldc_run.dir = Motor_Config.dir;
                 bldc_run.run_state = BLDC_Run;
                 // bldc_ctrl.output = bldc_ctrl.output_min;
                 bldc_ctrl.output = (float)(abs(bldc_run.eletrical_rpm)) / bldc_ctrl.KV / bldc_ctrl.pole_pairs / Virtual_Moto.V_bus_mv_f / 1000;
@@ -1413,14 +1363,14 @@ void Start_BLDC_Motor(void)
                     Full_Brake();
                     osDelay(10);
                 }
-                bldc_run.dir = Moto_Config.dir;
+                bldc_run.dir = Motor_Config.dir;
                 bldc_run.run_state = BLDC_StartUp;
                 bldc_ctrl.output = 0;
             }
             else
             #endif
             {
-                bldc_run.dir = Moto_Config.dir;
+                bldc_run.dir = Motor_Config.dir;
                 bldc_run.start_seq = BLDC_Start_Order;
                 bldc_run.run_state = BLDC_StartUp;
                 bldc_ctrl.output = 0;
@@ -1429,7 +1379,7 @@ void Start_BLDC_Motor(void)
                 bldc_run.phase_cnt_f = 0;
             }
         }
-        else if(Moto_Config.dir == CW)
+        else if(Motor_Config.dir == CW)
         {
             #if ANTI_WIND_STARTUP_ENABLE
             if(bldc_run.eletrical_rpm > 0)
@@ -1439,13 +1389,13 @@ void Start_BLDC_Motor(void)
                     Full_Brake();
                     osDelay(10);
                 }
-                bldc_run.dir = Moto_Config.dir;
+                bldc_run.dir = Motor_Config.dir;
                 bldc_run.run_state = BLDC_StartUp;
                 bldc_ctrl.output = 0;
             }
             else if(bldc_run.eletrical_rpm < 0)
             {
-                bldc_run.dir = Moto_Config.dir;
+                bldc_run.dir = Motor_Config.dir;
                 bldc_run.run_state = BLDC_Run;
                 // bldc_ctrl.output = bldc_ctrl.output_min;
                 bldc_ctrl.output = (float)(abs(bldc_run.eletrical_rpm)) / bldc_ctrl.KV / bldc_ctrl.pole_pairs / Virtual_Moto.V_bus_mv_f / 1000;
@@ -1453,7 +1403,7 @@ void Start_BLDC_Motor(void)
             else
             #endif
             {
-                bldc_run.dir = Moto_Config.dir;
+                bldc_run.dir = Motor_Config.dir;
                 bldc_run.start_seq = BLDC_Start_Order;
                 bldc_run.run_state = BLDC_StartUp;
                 bldc_ctrl.output = 0;
@@ -1482,7 +1432,7 @@ void Init_BLDC_Motor(void)
     Update_Filter_Value_Fast(4);
     bldc_run.PWM_freq_now = bldc_ctrl.PWM_freq_min;
     bldc_run.TIM1_ARR_now = PWM_TIM_BASE_FREQ / 2 / bldc_run.PWM_freq_now;
-    Virtual_Moto.sample_freq_now = bldc_run.PWM_freq_now;
+    Virtual_Moto.dt = 1.0f / bldc_run.PWM_freq_now;
     TIM1->CCER &= ~0x555;
     // disable preload
     TIM1->CR1 &= ~0x80;
@@ -1495,3 +1445,4 @@ void Init_BLDC_Motor(void)
     TIM1->CCR4 = TIM1->ARR - 1;
     #endif
 }
+

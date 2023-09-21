@@ -27,8 +27,8 @@ Sensor_Cali_Err_t Sensor_Calibration(float current_limit)
     err |= Voltage_Current_Sensor_Calibration();
 
     #if !FOC_DEBUG_HALL
-    if((Moto_Config.moto_type == BLDC && (bldc_ctrl.sensor_type == HALL_120_SENSOR || bldc_ctrl.sensor_type == HALL_60_SENSOR)) ||
-        (Moto_Config.moto_type == FOC && (foc_ctrl.sensor_type == HALL_120_SENSOR || foc_ctrl.sensor_type == HALL_60_SENSOR)))
+    if((Motor_Config.moto_type == BLDC && (bldc_ctrl.sensor_type == HALL_120_SENSOR || bldc_ctrl.sensor_type == HALL_60_SENSOR)) ||
+        (Motor_Config.moto_type == FOC && (foc_ctrl.sensor_type == HALL_120_SENSOR || foc_ctrl.sensor_type == HALL_60_SENSOR)))
     #endif
     {
         err |= HALL_Calibration(current_limit);
@@ -37,7 +37,7 @@ Sensor_Cali_Err_t Sensor_Calibration(float current_limit)
     osDelay(1000);
 
     #if !FOC_DEBUG_ENCODER
-    if(Moto_Config.moto_type == FOC && foc_ctrl.sensor_type >= IIC_ENCODER)
+    if(Motor_Config.moto_type == FOC && foc_ctrl.sensor_type >= IIC_ENCODER)
     #endif
     {
         err |= Encoder_Calibration(current_limit);

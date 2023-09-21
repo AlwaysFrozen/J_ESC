@@ -55,10 +55,11 @@ float Normalize_Angle_180Degree(float angle)
 float ABS_Angle_Delta(float angle0,float angle1)
 {
     float angle = 0;
-    float abs_delta = fabsf(angle0 - angle1);
+    float abs_delta = 0;
 
     angle0 = Normalize_Angle(angle0);
     angle1 = Normalize_Angle(angle1);
+    abs_delta = fabsf(angle0 - angle1);
 
     if (abs_delta < _PI)
     {
@@ -75,10 +76,11 @@ float ABS_Angle_Delta(float angle0,float angle1)
 float ABS_Angle_Delta_Degree(float angle0, float angle1)
 {
     float angle = 0;
-    float abs_delta = fabsf(angle0 - angle1);
+    float abs_delta = 0;
 
     angle0 = Normalize_Angle_Degree(angle0);
     angle1 = Normalize_Angle_Degree(angle1);
+    abs_delta = fabsf(angle0 - angle1);
 
     if (abs_delta < 180)
     {
@@ -503,25 +505,26 @@ void MTPA_Cal(FOC_Para_t * foc_para,float flux_wb,float Ld,float Lq)
 {
     float ld_lq_diff = Ld - Lq;
 
-    // https://zhuanlan.zhihu.com/p/558759346
-    // foc_para->Id_target = SQ(foc_para->Iq_ref) * ld_lq_diff / flux_wb;
-    foc_para->Id_target = SQ(foc_para->Iq) * ld_lq_diff / flux_wb;
+    // // https://zhuanlan.zhihu.com/p/558759346
+    // foc_para->Id_target = SQ(foc_para->Iq_target) * ld_lq_diff / flux_wb;
+    // // foc_para->Id_target = SQ(foc_para->Iq) * ld_lq_diff / flux_wb;
 
-    // // https://zhuanlan.zhihu.com/p/624474437
+    // https://zhuanlan.zhihu.com/p/624474437
+    foc_para->Id_target = (sqrtf(SQ(flux_wb) + 4 * SQ(ld_lq_diff) * SQ(foc_para->Iq_target)) - flux_wb) / (2 * ld_lq_diff);
     // foc_para->Id_target = (sqrtf(SQ(flux_wb) + 4 * SQ(ld_lq_diff) * SQ(foc_para->Iq)) - flux_wb) / (2 * ld_lq_diff);
 
     // // form VESC
-    // float iq_ref = Min_Abs(foc_para->Iq_ref,foc_para->Iq);
+    // float iq_ref = Min_Abs(foc_para->Iq_target,foc_para->Iq);
     // foc_para->Id_target = (flux_wb - sqrtf(SQ(flux_wb) + 8.0f * SQ(ld_lq_diff * iq_ref))) / (4.0f * ld_lq_diff);
-    // foc_para->Iq_ref = SIGN(foc_para->Iq_ref) * sqrtf(SQ(foc_para->Iq_ref) - SQ(foc_para->Id_target));
+    // foc_para->Iq_target = SIGN(foc_para->Iq_target) * sqrtf(SQ(foc_para->Iq_target) - SQ(foc_para->Id_target));
 }
 
 void FOC_Pll_Run(float ang, float *ang_last,float *speed,float dt,float kp,float ki)
 {
-    UTILS_NAN_ZERO(*ang_last);
+    NAN_ZERO(*ang_last);
     float delta_theta = ang - *ang_last;
     delta_theta = Normalize_Angle(delta_theta);
-    UTILS_NAN_ZERO(*speed);
+    NAN_ZERO(*speed);
     *ang_last += (*speed + kp * delta_theta) * dt;
     *ang_last = Normalize_Angle(*ang_last);
     *speed += ki * delta_theta * dt;

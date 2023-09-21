@@ -42,21 +42,27 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
-    float ud = 0.0;
+    float ua = 0;
+    float ub = 0;
+    float ud = 0;
+    float uq = 0;
 
     // enable output
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
 
     // current set
-    while (fabsf(phase_current_f[0]) < current_limit)
+    while (foc_para.Id < current_limit)
     {
-        SVPWM_Update(0, 0, ud, 0, 0);
+        Clarke_Transmission(phase_current_f[0], phase_current_f[1], phase_current_f[2], &foc_para.Ia, &foc_para.Ib);
+        Park_Transmission(foc_para.Ia, foc_para.Ib, &foc_para.Id, &foc_para.Iq, DEG_TO_RAD(0));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(0));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(0));
 
         ud += 0.001f;
-        if (ud > _SQRT3_2)
+        if (ud > FOC_MAX_MODULATION_RATIO)
         {
-            ud = _SQRT3_2;
+            ud = FOC_MAX_MODULATION_RATIO;
             break;
         }
         osDelay(1);
@@ -83,7 +89,8 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 
     for (int16_t i = 0; i < 720; i++) // Rotate 720° CCW
     {
-        SVPWM_Update(0, 0, ud, 0, Normalize_Angle(DEG_TO_RAD(i)));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(i));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(i));
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -104,7 +111,8 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
     osDelay(100);
     for (int16_t i = 720 - 1; i >= 0; i--) // Rotate 720° CW
     {
-        SVPWM_Update(0, 0, ud, 0, Normalize_Angle(DEG_TO_RAD(i)));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(i));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(i));
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -176,13 +184,13 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 
         if (memcmp(hall_seq_ccw_sort, hall_seq_120_sort, sizeof(hall_seq_120_sort) - 1) == 0)
         {
-            if (Moto_Config.moto_type == BLDC && bldc_ctrl.sensor_type != HALL_120_SENSOR)
+            if (Motor_Config.moto_type == BLDC && bldc_ctrl.sensor_type != HALL_120_SENSOR)
             {
                 bldc_ctrl.sensor_type = HALL_120_SENSOR;
                 err |= Sensor_Cali_Err_HALL_TYPE;
             }
             #if !FOC_DEBUG_HALL
-            else if (Moto_Config.moto_type == FOC && foc_ctrl.sensor_type != HALL_120_SENSOR)
+            else if (Motor_Config.moto_type == FOC && foc_ctrl.sensor_type != HALL_120_SENSOR)
             {
                 foc_ctrl.sensor_type = HALL_120_SENSOR;
                 err |= Sensor_Cali_Err_HALL_TYPE;
@@ -196,13 +204,13 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
         }
         else if (memcmp(hall_seq_ccw_sort, hall_seq_60_sort, sizeof(hall_seq_60_sort) - 1) == 0)
         {
-            if (Moto_Config.moto_type == BLDC && bldc_ctrl.sensor_type != HALL_60_SENSOR)
+            if (Motor_Config.moto_type == BLDC && bldc_ctrl.sensor_type != HALL_60_SENSOR)
             {
                 bldc_ctrl.sensor_type = HALL_60_SENSOR;
                 err |= Sensor_Cali_Err_HALL_TYPE;
             }
             #if !FOC_DEBUG_HALL
-            else if (Moto_Config.moto_type == FOC && foc_ctrl.sensor_type != HALL_60_SENSOR)
+            else if (Motor_Config.moto_type == FOC && foc_ctrl.sensor_type != HALL_60_SENSOR)
             {
                 foc_ctrl.sensor_type = HALL_60_SENSOR;
                 err |= Sensor_Cali_Err_HALL_TYPE;

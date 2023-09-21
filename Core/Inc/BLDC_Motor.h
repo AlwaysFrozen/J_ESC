@@ -133,12 +133,6 @@ void Start_BLDC_Motor(void);
 void Stop_BLDC_Motor(void);
 void Init_BLDC_Motor(void);
 
-void Vector_1(uint16_t ARR_value,uint16_t CCR_value);
-void Vector_2(uint16_t ARR_value,uint16_t CCR_value);
-void Vector_3(uint16_t ARR_value,uint16_t CCR_value);
-void Vector_4(uint16_t ARR_value,uint16_t CCR_value);
-void Vector_5(uint16_t ARR_value,uint16_t CCR_value);
-void Vector_6(uint16_t ARR_value,uint16_t CCR_value);
 void MOS_Q15PWM(uint16_t ARR_value,uint16_t CCR_value);
 void MOS_Q16PWM(uint16_t ARR_value,uint16_t CCR_value);
 void MOS_Q24PWM(uint16_t ARR_value,uint16_t CCR_value);
@@ -148,4 +142,5 @@ void MOS_Q35PWM(uint16_t ARR_value,uint16_t CCR_value);
 void Brake(void);
 void Full_Brake(void);
 void Plug_Brake(void);
+
 #endif

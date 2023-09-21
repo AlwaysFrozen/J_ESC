@@ -2,6 +2,7 @@
 #include "My_Math.h"
 #include "FOC.h"
 
+
 SMO_t smo_observer;
 
 void SMO_Init(SMO_t *s)
@@ -81,7 +82,7 @@ void SMO_Init(SMO_t *s)
 #if SMO_USE_PLL
     s->ThetaOffset = 0;
     s->pll.Kp = 0.0001f;
-    s->pll.Ki = 0.0001f;
+    s->pll.Ki = 0.00001f;
 #endif
 }
 
@@ -144,13 +145,12 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     }
 
 #if SMO_USE_PLL
+    // see https://zhuanlan.zhihu.com/p/652503676
+    // s->pll.err = SIGN(s->pll.Ui) * -s->Zalpha * cosf(s->pll.theta) - SIGN(s->pll.Ui) * s->Zbeta * sinf(s->pll.theta);
     s->pll.err = -s->Zalpha * cosf(s->pll.theta) - s->Zbeta * sinf(s->pll.theta);
-    // s->pll.err = s->Zalpha * cosf(s->pll.theta) - s->Zbeta * sinf(s->pll.theta);
     s->pll.Interg += s->pll.err * s->pll.Ki;
     s->pll.Ui = s->pll.err * s->pll.Kp + s->pll.Interg;
-
     s->pll.theta += s->pll.Ui;
-
     s->pll.speed_hz = s->pll.Ui / (LoopTimeInSec * _2PI);
     FirstOrder_LPF_Cacl(s->pll.speed_hz, s->pll.speed_hz_f, 0.003f);
 #if !SMO_USE_PLL_SPEED

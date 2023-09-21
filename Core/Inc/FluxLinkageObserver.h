@@ -15,11 +15,11 @@ typedef struct
 
 typedef struct _PLL_Obj_
 {
-    float Kp;
-    float Ki;
-    float Interg;
-    float Ui;
-    float err;
+    float Kp;               //!< the proportional gain for the PI controller
+    float Ki;               //!< the integral gain for the PI controller
+    float Interg;           //!< the integrator start value for the PI
+    float Ui;               //!< the integrator start value for the PI controller
+    float err;              //!< the err input value
     float speed_hz;
     float speed_hz_f;
     float theta;
@@ -32,9 +32,6 @@ typedef struct _OBSERVER_Obj_
     float flux_wb;
     float dt;
     float gain;
-
-    float saturation_comp;
-    float I_bus_max;
 
     float R_I_a;
     float R_I_b;

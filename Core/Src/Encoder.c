@@ -33,7 +33,10 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
+    float ua = 0;
+    float ub = 0;
     float ud = 0;
+    float uq = 0;
     /* 
         align to the initial Angle
         Considering that the motor is affected by the cogging effect and the rotor stays at an Angle of 30 90 150 210 270 330 in its natural state, the initial alignment Angle should be selected among these values to reduce the error
@@ -57,7 +60,8 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     {
         Clarke_Transmission(phase_current_f[0], phase_current_f[1], phase_current_f[2], &foc_para.Ia, &foc_para.Ib);
         Park_Transmission(foc_para.Ia, foc_para.Ib, &foc_para.Id, &foc_para.Iq, DEG_TO_RAD(e_degree));
-        SVPWM_Update(0, 0, ud, 0, DEG_TO_RAD(e_degree));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
 
         ud += 0.001f;
         if (ud > FOC_MAX_MODULATION_RATIO)
@@ -87,7 +91,8 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 2
     for (int16_t i = 0; i < move_e_degree; i++)
     {
-        SVPWM_Update(0, 0, ud, 0, Normalize_Angle(DEG_TO_RAD(e_degree++)));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree++));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
         osDelay(10);
     }
     osDelay(500);
@@ -108,7 +113,8 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 3
     for (int16_t i = move_e_degree; i > 0; i--)
     {
-        SVPWM_Update(0, 0, ud, 0, Normalize_Angle(DEG_TO_RAD(e_degree--)));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree--));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
         osDelay(10);
     }
     osDelay(500);
@@ -129,7 +135,8 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 4
     for (int16_t i = move_e_degree; i > 0; i--)
     {
-        SVPWM_Update(0, 0, ud, 0, Normalize_Angle(DEG_TO_RAD(e_degree--)));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree--));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
         osDelay(10);
     }
     osDelay(500);
@@ -150,7 +157,8 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 5
     for (int16_t i = 0; i < move_e_degree; i++)
     {
-        SVPWM_Update(0, 0, ud, 0, Normalize_Angle(DEG_TO_RAD(e_degree++)));
+        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree++));
+        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
         osDelay(10);
     }
     osDelay(500);
@@ -229,6 +237,12 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         {
             AS5048_para.m_angle_offset = temp_m_ang[5] - DEG_TO_RAD(e_degree) / foc_ctrl.pole_pairs;
         }
+
+        AS5048_Read_M_Ang();
+        AS5048_para.e_angle = AS5048_para.m_angle * foc_ctrl.pole_pairs;
+        AS5048_para.e_angle = Normalize_Angle(AS5048_para.e_angle);
+        foc_para.m_angle_multicycle = AS5048_para.m_angle;
+        foc_para.m_cycle = 0;
     }
     else
     {

@@ -114,22 +114,35 @@ void Truncate_Number_Abs(float *number, float max)
     }
 }
 
-void quickSort(uint32_t *number,uint32_t first,uint32_t last)
+uint8_t Number_In_Absolute_Range_f32(float num,float base,float range)
 {
-    uint32_t i,j,pivot,temp;
+    if(fabsf(num - base) < fabsf(range))
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
 
-    if(first < last)
+void quickSort(int32_t *number, uint32_t first, uint32_t last)
+{
+    uint32_t i, j, pivot;
+    int32_t temp;
+
+    if (first < last)
     {
         pivot = first;
         i = first;
         j = last;
-        while(i < j) 
+        while (i < j)
         {
-            while(number[i] <= number[pivot] && i < last)
+            while (number[i] <= number[pivot] && i < last)
                 i++;
-            while(number[j] > number[pivot])
+            while (number[j] > number[pivot] && j > first)
                 j--;
-            if(i < j)
+            if (i < j)
             {
                 temp = number[i];
                 number[i] = number[j];
@@ -139,7 +152,10 @@ void quickSort(uint32_t *number,uint32_t first,uint32_t last)
         temp = number[pivot];
         number[pivot] = number[j];
         number[j] = temp;
-        quickSort(number, first, j - 1);
+        if (j >= 1)
+        {
+            quickSort(number, first, j - 1);
+        }
         quickSort(number, j + 1, last);
     }
 }
@@ -163,6 +179,24 @@ void bubbleSort_u8(uint8_t *arr,uint16_t len)
 }
 
 void bubbleSort_u16(uint16_t *arr,uint16_t len)
+{
+    uint16_t temp;
+
+    for(uint16_t i = 0;i < len - 1;i++)
+    {
+        for(uint16_t j = 0;j < len - 1- i;j++) 
+        {
+            if(arr[j] > arr[j + 1]) 
+            {
+                temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+            }
+        }
+    }
+}
+
+void bubbleSort_i32(int32_t *arr,uint16_t len)
 {
     uint16_t temp;
 
@@ -220,14 +254,39 @@ void Index_Sort(float *arr,uint16_t len,uint16_t *index_arr)
     }
 }
 
-uint8_t Number_In_Absolute_Range_f32(float num,float base,float range)
+int32_t Find_Most_Repeated_Element(int32_t arr[], uint32_t len,int32_t *res)
 {
-    if(fabsf(num - base) < fabsf(range))
+    uint32_t slow_p = 0, fast_p = 1;
+    uint32_t max_cnt = 0, temp_cnt = 0;
+
+    // bubbleSort_i32(arr,len);
+    quickSort(arr,0,len - 1);
+
+    while (fast_p < len)
     {
-        return 1;
+        if (arr[slow_p] == arr[fast_p])
+        {
+            if (++fast_p == len)
+            {
+                temp_cnt = fast_p - slow_p;
+                if (temp_cnt > max_cnt)
+                {
+                    max_cnt = temp_cnt;
+                    *res = arr[slow_p];
+                }
+            }
+        }
+        else
+        {
+            temp_cnt = fast_p - slow_p;
+            if (temp_cnt > max_cnt)
+            {
+                max_cnt = temp_cnt;
+                *res = arr[slow_p];
+            }
+            slow_p = fast_p++;
+        }
     }
-    else
-    {
-        return 0;
-    }
+
+    return max_cnt;
 }

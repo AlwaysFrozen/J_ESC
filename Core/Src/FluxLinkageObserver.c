@@ -14,9 +14,14 @@ void FLO_Init(FLO_t *obs)
     obs->ls_H = PhaseInd;
     obs->flux_wb = FLUXWb;
     obs->dt = 1.0f / FOC_CC_LOOP_FREQ;
+
+    #ifdef MOTOR_2PP_SERVO
     obs->gain = 0.05;
-    obs->saturation_comp = 0.01;
-    obs->I_bus_max = 50000;
+    #endif
+
+    #ifdef MOTOR_14PP_BLDC
+    obs->gain = 20;
+    #endif
 }
 
 void Observer_setPLL(FLO_t *obs, float kp,float ki)
@@ -70,6 +75,7 @@ void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para)
     obs->flux_r_err = SQ(obs->flux_wb) - (SQ(obs->flux_r_a) + SQ(obs->flux_r_b));
     // cal arctan theta
     obs->Theta = Normalize_Angle(atan2f(obs->flux_r_b,obs->flux_r_a));
+    // see https://zhuanlan.zhihu.com/p/652503676
     // cal pll speed
     obs->pll.err = obs->flux_r_b * cosf(obs->pll.theta) - obs->flux_r_a * sinf(obs->pll.theta);
     obs->pll.Interg += obs->pll.err * obs->pll.Ki;

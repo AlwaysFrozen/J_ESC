@@ -241,6 +241,8 @@ int main(void)
     MX_SPI1_Init();
     #endif
     
+    /* Motor Init */
+    motor_type_now = Motor_Config.moto_type;
     Init_Motor();
 
     /* USER CODE BEGIN 2 */
@@ -1091,13 +1093,13 @@ void ScheduleTask(void *argument)
             }
             else if (!Motor_Is_Running() && motor_start == 5)
             {
-                if (Moto_Config.dir == CCW)
+                if (Motor_Config.dir == CCW)
                 {
-                    Moto_Config.dir = CW;
+                    Motor_Config.dir = CW;
                 }
                 else
                 {
-                    Moto_Config.dir = CCW;
+                    Motor_Config.dir = CCW;
                 }
                 Start_Motor();
             }

@@ -45,6 +45,8 @@ typedef struct
     float Uq;
     float Id;
     float Iq;
+    float Id_f;
+    float Iq_f;
     /*  */
     float Ua_rate;
     float Ub_rate;
@@ -60,9 +62,12 @@ typedef struct
     float Id_target;
     float Iq_target;
     float Speed_target;
+    float Position_target;
 
     float e_angle;
     float m_angle;
+    int32_t m_cycle;
+    float m_angle_multicycle;
 
     
     uint8_t sector;
@@ -76,26 +81,6 @@ typedef struct
     int16_t dt_compensation_value;
     #endif
 }FOC_Para_t;
-
-typedef struct
-{
-    uint8_t HFI_Div;
-    uint16_t HFI_cnt;
-
-    float HFI_Id_target;
-    float HFI_Ud_sign;
-    float HFI_Ia_now;
-    float HFI_Ia_last;
-    float HFI_Ib_now;
-    float HFI_Ib_last;
-
-    float HFI_Ia_base;
-    float HFI_Ia_delta;
-    float HFI_Ib_base;
-    float HFI_Ib_delta;
-
-    float HFI_e_angle;
-}FOC_HFI_Para_t;
 
 typedef struct 
 {
@@ -112,6 +97,7 @@ typedef struct
     /* control loop div */
     uint32_t current_loop_cnt;
     uint32_t speed_loop_cnt;
+    uint32_t position_loop_cnt;
     /* speed */
     float eletrical_rpm;
     float eletrical_rpm_f;
@@ -142,19 +128,59 @@ typedef struct
     /* control loop */
     uint8_t current_loop;
     uint8_t speed_loop;
+    uint8_t position_loop;
     uint8_t current_loop_div;
     uint8_t speed_loop_div;
+    uint8_t position_loop_div;
+    /* modulation ratio */
+    float modulation_ratio;
     /* PWM */
     uint32_t PWM_freq;
 }FOC_CONTROL_t;
 
+typedef struct
+{
+    uint16_t HFI_Freq;
+    uint16_t HFI_Polarity_judgment_ms;
+    float HFI_Ud_amplitude;
+
+    uint32_t HFI_DIV_cnt;
+    uint32_t HFI_NS_Polarity_judgment_cnt;
+
+    float HFI_Ud_sign;
+
+    float HFI_Ia_now;
+    float HFI_Ia_last;
+    float HFI_Ib_now;
+    float HFI_Ib_last;
+
+    float HFI_Ia_base;
+    float HFI_Ia_delta;
+    float HFI_Ib_base;
+    float HFI_Ib_delta;
+
+    float HFI_Id_P;
+    float HFI_Id_N;
+
+    float Kp;
+    float Ki;
+    float Interg;
+    float Ui;
+    float err;
+    float speed_hz;
+    float speed_hz_f;
+    float theta;
+
+    float HFI_e_angle;
+}FOC_HFI_Para_t;
+
 extern FOC_Para_t foc_para;
-extern FOC_HFI_Para_t HFI_para;
 extern FOC_RUN_t foc_run;
 extern FOC_CONTROL_t  foc_ctrl;
 extern PID_Position_t ID_PID;
 extern PID_Position_t IQ_PID;
 extern PID_Position_t Speed_PID;
+extern FOC_HFI_Para_t HFI_para;
 
 void SVPWM_Update(float Ua_rate,float Ub_rate,float Ud_rate,float Uq_rate,float angle);
 void FOC_Process(void);

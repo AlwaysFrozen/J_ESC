@@ -59,13 +59,13 @@ void Inverter_Process(void)
         inverter_run.angle += inverter_run.angle_step;
         inverter_run.angle = Normalize_Angle(inverter_run.angle);
 
-        if(Moto_Config.moto_type == Single_Phase_Inverter)
+        if(motor_type_now == Single_Phase_Inverter)
         {
             Sine_Wave_Generate(1,inverter_ctrl.output,inverter_run.angle,inverter_run.TIM1_ARR_now - 1,&inverter_run.CMP1,&inverter_run.CMP2,&inverter_run.CMP3);
             TIM1->CCR1 = inverter_run.CMP1;
             TIM1->CCR2 = inverter_run.CMP2;
         }
-        else if(Moto_Config.moto_type == Three_Phase_Inverter)
+        else if(motor_type_now == Three_Phase_Inverter)
         {
             Sine_Wave_Generate(3,inverter_ctrl.output,inverter_run.angle,inverter_run.TIM1_ARR_now - 1,&inverter_run.CMP1,&inverter_run.CMP2,&inverter_run.CMP3);
             TIM1->CCR1 = inverter_run.CMP1;
@@ -78,11 +78,11 @@ void Inverter_Process(void)
 void Start_Inverter(void)
 {
     VVVF_Process();
-    if(Moto_Config.moto_type == Single_Phase_Inverter)
+    if(motor_type_now == Single_Phase_Inverter)
     {
         TIM1->CCER |= 0x055;
     }
-    else if(Moto_Config.moto_type == Three_Phase_Inverter)
+    else if(motor_type_now == Three_Phase_Inverter)
     {
         TIM1->CCER |= 0x555;
     }

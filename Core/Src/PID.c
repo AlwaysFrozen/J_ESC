@@ -1,6 +1,8 @@
 #include "PID.h"
+#include "My_Math.h"
 
 // #define USE_Differential
+// #define USE_Kb
 
 void PID_Position_Init(PID_Position_t *pPID,float Ts,float Kp,float Ki,float Kd,float Kb,float limit_p,float limit_n)
 {
@@ -40,17 +42,34 @@ float PID_Position_Run(PID_Position_t *pPID,float target,float feedback)
     if(pPID->out_temp > pPID->limit_positive)
     {
         pPID->out = pPID->limit_positive;
+        #ifndef USE_Kb
+        if(pPID->err < 0)
+        {
+            pPID->err_total += pPID->err * pPID->Ts;
+        }
+        #endif
     }
     else if(pPID->out_temp < pPID->limit_negative) 
     {
         pPID->out = pPID->limit_negative;
+        #ifndef USE_Kb
+        if(pPID->err > 0)
+        {
+            pPID->err_total += pPID->err * pPID->Ts;
+        }
+        #endif
     }
     else
     {
         pPID->out = pPID->out_temp;
+        #ifndef USE_Kb
+        pPID->err_total += pPID->err * pPID->Ts;
+        #endif
     }
 
+    #ifdef USE_Kb
     pPID->err_total += ((pPID->out - pPID->out_temp) * pPID->Kb + pPID->err) * pPID->Ts;
+    #endif
 
     return pPID->out;
 }

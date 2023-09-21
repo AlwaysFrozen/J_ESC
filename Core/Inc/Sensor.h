@@ -15,6 +15,7 @@
 typedef enum
 {
     SENSOR_LESS,
+    SENSOR_LESS_VIS,
     SENSOR_LESS_HFI,
     HALL_120_SENSOR,
     HALL_60_SENSOR,
