@@ -10,9 +10,15 @@
 */
 
 #define FOC_PWM_FREQ                                (20000UL)
+
 #define FOC_CC_LOOP_FREQ                            (FOC_PWM_FREQ)
 #define FOC_SC_LOOP_FREQ                            (4000UL)
 #define FOC_PC_LOOP_FREQ                            (1000UL)
+
+#define FOC_CC_LOOP_DT                              (1.0f / FOC_CC_LOOP_FREQ)
+#define FOC_SC_LOOP_DT                              (1.0f / FOC_SC_LOOP_FREQ)
+#define FOC_PC_LOOP_DT                              (1.0f / FOC_PC_LOOP_FREQ)
+
 
 // #define FOC_MAX_MODULATION_RATIO                    (_SQRT3_2)
 #define FOC_MAX_MODULATION_RATIO                    (1.0f)
@@ -28,7 +34,7 @@
 #define USE_S_CURVE_ACCELERATE                      1
 #define MAX_DIFF_ANGLE                              (6.28318530718f * 0.083333333f)     /* 360 * 0.083333333 = 30 */
 
-#define FOC_DEBUG_ENCODER                           1
+#define FOC_DEBUG_ENCODER                           0
 #define FOC_DEBUG_ENCODER_USE_ANGLE                 0
 #define FOC_DEBUG_ENCODER_USE_SPEED                 0
 #define FOC_DEBUG_ENCODER_USE_SPEED_LOOP            0
@@ -86,7 +92,6 @@
     #define StartUpErpm                                 (1000)
     #define MinErpm                                     (200)
     //ID_PID
-    #define ID_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define ID_KP                                       (10.0f)
     #define ID_KI                                       (200.0f)
     #define ID_KD                                       (0.0f)
@@ -94,7 +99,6 @@
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define IQ_KP                                       (10.0f)
     #define IQ_KI                                       (200.0f)
     #define IQ_KD                                       (0.0f)
@@ -102,7 +106,6 @@
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define IQ_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //SPEED_PID
-    #define SPEED_TS                                    (1.0f / FOC_SC_LOOP_FREQ)
     #define SPEED_KP                                    (10000.0f)
     #define SPEED_KI                                    (50000.0f)
     #define SPEED_KD                                    (0.0f)
@@ -110,7 +113,6 @@
     #define SPEED_LP                                    (MAX_PHASE_CURRENT)
     #define SPEED_LN                                    (-MAX_PHASE_CURRENT)
     //POSITION_PID
-    #define POSITION_TS                                 (1.0f / FOC_PC_LOOP_FREQ)
     #define POSITION_KP                                 (1000.0f)
     #define POSITION_KI                                 (1000.0f)
     #define POSITION_KD                                 (0.0f)
@@ -141,7 +143,6 @@
     #define StartUpErpm                                 (1000)
     #define MinErpm                                     (200)
     //ID_PID
-    #define ID_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define ID_KP                                       (5.0f)
     #define ID_KI                                       (5.0f)
     #define ID_KD                                       (0.0f)
@@ -149,7 +150,6 @@
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define IQ_KP                                       (5.0f)
     #define IQ_KI                                       (50.0f)
     #define IQ_KD                                       (0.0f)
@@ -157,7 +157,6 @@
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define IQ_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //SPEED_PID
-    #define SPEED_TS                                    (1.0f / FOC_SC_LOOP_FREQ)
     #define SPEED_KP                                    (3000.0f)
     #define SPEED_KI                                    (5000.0f)
     #define SPEED_KD                                    (0.0f)
@@ -165,7 +164,6 @@
     #define SPEED_LP                                    (3000)
     #define SPEED_LN                                    (-3000)
     //POSITION_PID
-    #define POSITION_TS                                 (1.0f / FOC_PC_LOOP_FREQ)
     #define POSITION_KP                                 (500000.0f)
     #define POSITION_KI                                 (100000.0f)
     #define POSITION_KD                                 (0.0f)
@@ -198,7 +196,6 @@
     #define StartUpErpm                                 (3000)
     #define MinErpm                                     (1000)
     //ID_PID
-    #define ID_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define ID_KP                                       (0.3f)
     #define ID_KI                                       (20.0f)
     #define ID_KD                                       (0.0f)
@@ -206,7 +203,6 @@
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define IQ_KP                                       (0.3f)
     #define IQ_KI                                       (20.0f)
     #define IQ_KD                                       (0.0f)
@@ -214,7 +210,6 @@
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define IQ_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //SPEED_PID
-    #define SPEED_TS                                    (1.0f / FOC_SC_LOOP_FREQ)
     #define SPEED_KP                                    (2500.0f)
     #define SPEED_KI                                    (200.0f)
     #define SPEED_KD                                    (0.0f)
@@ -222,7 +217,6 @@
     #define SPEED_LP                                    (MAX_PHASE_CURRENT)
     #define SPEED_LN                                    (-MAX_PHASE_CURRENT)
     //POSITION_PID
-    #define POSITION_TS                                 (1.0f / FOC_PC_LOOP_FREQ)
     #define POSITION_KP                                 (1000.0f)
     #define POSITION_KI                                 (1000.0f)
     #define POSITION_KD                                 (0.0f)
@@ -251,7 +245,6 @@
     #define StartUpErpm                                 (4000)
     #define MinErpm                                     (2000)
     //ID_PID
-    #define ID_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define ID_KP                                       (1.0f)
     #define ID_KI                                       (1.0f)
     #define ID_KD                                       (0.0f)
@@ -259,7 +252,6 @@
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define IQ_KP                                       (1.0f)
     #define IQ_KI                                       (1.0f)
     #define IQ_KD                                       (0.0f)
@@ -267,7 +259,6 @@
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define IQ_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //SPEED_PID
-    #define SPEED_TS                                    (1.0f / FOC_SC_LOOP_FREQ)
     #define SPEED_KP                                    (700.0f)
     #define SPEED_KI                                    (200.0f)
     #define SPEED_KD                                    (0.0f)
@@ -296,7 +287,6 @@
     #define StartUpErpm                                 (4000)
     #define MinErpm                                     (2000)
     //ID_PID
-    #define ID_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define ID_KP                                       (4.0f)
     #define ID_KI                                       (4.0f)
     #define ID_KD                                       (0.0f)
@@ -304,7 +294,6 @@
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define IQ_KP                                       (5.0f)
     #define IQ_KI                                       (5.0f)
     #define IQ_KD                                       (0.0f)
@@ -312,7 +301,6 @@
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define IQ_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //SPEED_PID
-    #define SPEED_TS                                    (1.0f / FOC_SC_LOOP_FREQ)
     #define SPEED_KP                                    (1200.0f)
     #define SPEED_KI                                    (100.0f)
     #define SPEED_KD                                    (0.0f)
@@ -341,7 +329,6 @@
     #define StartUpErpm                                 (4000)
     #define MinErpm                                     (2000)
     //ID_PID
-    #define ID_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define ID_KP                                       (0.2f)
     #define ID_KI                                       (0.2f)
     #define ID_KD                                       (0.0f)
@@ -349,7 +336,6 @@
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_TS                                       (1.0f / FOC_CC_LOOP_FREQ)
     #define IQ_KP                                       (0.2f)
     #define IQ_KI                                       (0.2f)
     #define IQ_KD                                       (0.0f)
@@ -357,7 +343,6 @@
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define IQ_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //SPEED_PID
-    #define SPEED_TS                                    (1.0f / FOC_SC_LOOP_FREQ)
     #define SPEED_KP                                    (2000.0f)
     #define SPEED_KI                                    (200.0f)
     #define SPEED_KD                                    (0.0f)

@@ -46,7 +46,7 @@ PID_Position_t Position_PID;
 FOC_HFI_Para_t HFI_para = 
 {
     .HFI_Freq = 1000,
-    .HFI_Polarity_judgment_ms = 50,
+    .HFI_Polarity_judgment_ms = 10,
     .HFI_Ud_amplitude = 0.1f,
     .HFI_Ud_sign = 1,
     .Kp = 0.0001f,
@@ -1033,8 +1033,8 @@ void Init_FOC_Motor(void)
     FLO_Init(&flo_observer);
     #endif
 
-    PID_Position_Init(&ID_PID,ID_TS,ID_KP,ID_KI,ID_KD,ID_KB,ID_LP,ID_LN);
-    PID_Position_Init(&IQ_PID,IQ_TS,IQ_KP,IQ_KI,IQ_KD,IQ_KB,IQ_LP,IQ_LN);
-    PID_Position_Init(&Speed_PID,SPEED_TS,SPEED_KP,SPEED_KI,SPEED_KD,SPEED_KB,SPEED_LP,SPEED_LN);
-    PID_Position_Init(&Position_PID,POSITION_TS,POSITION_KP,POSITION_KI,POSITION_KD,POSITION_KB,POSITION_LP,POSITION_LN);
+    PID_Position_Init(&ID_PID,FOC_CC_LOOP_DT,ID_KP,ID_KI,ID_KD,ID_KB,ID_LP,ID_LN);
+    PID_Position_Init(&IQ_PID,FOC_CC_LOOP_DT,IQ_KP,IQ_KI,IQ_KD,IQ_KB,IQ_LP,IQ_LN);
+    PID_Position_Init(&Speed_PID,FOC_SC_LOOP_DT,SPEED_KP,SPEED_KI,SPEED_KD,SPEED_KB,SPEED_LP,SPEED_LN);
+    PID_Position_Init(&Position_PID,FOC_PC_LOOP_DT,POSITION_KP,POSITION_KI,POSITION_KD,POSITION_KB,POSITION_LP,POSITION_LN);
 }

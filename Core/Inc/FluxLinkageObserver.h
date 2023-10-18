@@ -54,9 +54,5 @@ extern FLO_t flo_observer;
 
 
 void FLO_Init(FLO_t *obs);
-void Observer_setPLL(FLO_t *obs, float kp,float ki);
-void Observer_setMotorParams(FLO_t *obs,float rs,float ls,float flux);
-void Observer_setCtrlPeriod(FLO_t *obs,float ts);
-void Observer_setGain(FLO_t *obs,float gain);
 void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para);
 #endif

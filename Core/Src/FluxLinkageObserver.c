@@ -24,29 +24,6 @@ void FLO_Init(FLO_t *obs)
     #endif
 }
 
-void Observer_setPLL(FLO_t *obs, float kp,float ki)
-{
-    obs->pll.Kp = kp;
-    obs->pll.Ki = ki;
-}
-
-void Observer_setMotorParams(FLO_t *obs,float rs,float ls,float flux)
-{
-    obs->rs_ohm = rs;
-    obs->ls_H = ls;
-    obs->flux_wb = flux;
-}
-
-void Observer_setCtrlPeriod(FLO_t *obs,float ts)
-{
-    obs->dt = ts;
-}
-
-void Observer_setGain(FLO_t *obs,float gain)
-{
-    obs->gain = gain;
-}
-
 void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para)
 {
     /*
