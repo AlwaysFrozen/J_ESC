@@ -54,6 +54,8 @@ typedef struct
     /* befm process */
     float virtual_mid;
     float virtual_mid_f;
+    uint32_t befm_detect_delay_cnt;
+    uint32_t befm_detect_delay_cnt_ref;
     uint32_t befm_queue[3];
     uint32_t befm_queue_f[3];
     uint32_t befm_filter_len;
@@ -63,9 +65,11 @@ typedef struct
     uint32_t phase_cnt;
     uint32_t phase_cnt_last;
     uint32_t phase_cnt_f;
+    uint32_t period_cnt;
+    uint32_t period_cnt_last;
+    uint32_t period_cnt_f;
     uint32_t delay_angle_cnt_ref;
     uint32_t delay_angle_cnt;
-    uint32_t period_cnt;
     /* speed */
     Direction_t dir;
     int32_t eletrical_rpm;
@@ -98,7 +102,7 @@ typedef struct
     uint16_t KV;
     uint8_t pole_pairs;
     uint8_t delay_angle;
-    /* start config */ 
+    /* sensorless start config */ 
     float start_force;
     uint32_t start_order_ms;
     uint32_t start_first_step_ms;
@@ -107,6 +111,9 @@ typedef struct
     uint16_t start_step_min;
     uint16_t start_step_max;
     uint16_t start_max_mse;
+    /* sensorless run config */
+    uint8_t befm_detect_delay_angle;
+    uint8_t befm_filter_angle;
     /* stall protect */
     uint16_t stall_protect_ms;
     uint16_t stall_protect_mse;

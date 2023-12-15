@@ -16,8 +16,8 @@
 
 Sensor_Cali_t sensor_calibration_status = Sensor_Calibrating;
 Sensor_Cali_Err_t sensor_calibration_err = Sensor_Cali_Err_NONE;
-float sensor_calibration_current = 3000;
 
+float sensor_calibration_current = 3;
 
 // Do not use this function in irq!!!
 Sensor_Cali_Err_t Sensor_Calibration(float current_limit)

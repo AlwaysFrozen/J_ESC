@@ -13,17 +13,19 @@
 
 #include "usbd_cdc_if.h"
 
-#define PWM_TIM_BASE_FREQ       (168000000U)
 
-#define MAX_PHASE_CURRENT       (16000)
+#define PWM_TIM_BASE_FREQ           (168000000U)
 
-#define PHASE_VOLTAGE_RATIO     (15.091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) mv
-// #define PHASE_CURRENT_RATIO     (80.586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 ma     //0.5m ohm
-#define PHASE_CURRENT_RATIO     (8.0586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 ma     //5m ohm
-// #define PHASE_CURRENT_RATIO     (2.014652f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.02 ma        //20m ohm
+#define MAX_PHASE_CURRENT           (16)
 
-#define MIN_LPF_FC              (200)
-#define MAX_LPF_FC              (10000)
+#define BUS_VOLTAGE_RATIO           (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) mv
+#define phase_voltage_V_RATIO       (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) / 1000 v
+// #define phase_current_A_RATIO       (0.080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 / 1000 a     //0.5m ohm
+#define phase_current_A_RATIO       (0.0080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 / 1000 a     //5m ohm
+// #define phase_current_A_RATIO       (0.002014652f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.02 / 1000 a        //20m ohm
+
+#define MIN_LPF_FC                  (200)
+#define MAX_LPF_FC                  (10000)
 
 typedef enum
 {
@@ -77,8 +79,8 @@ typedef struct
     Quadrant_t run_quadrant;
     float dt;
     float electronic_speed_hz;
-    uint32_t V_bus_mv;
-    uint32_t V_bus_mv_f;
+    uint32_t V_bus_v;
+    uint32_t V_bus_v_f;
 }Virtual_Motor_t;
 
 typedef struct 

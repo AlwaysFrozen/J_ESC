@@ -30,10 +30,10 @@ void PID_Position_Reset(PID_Position_t *pPID)
 float PID_Position_Run(PID_Position_t *pPID,float target,float feedback)
 {
     pPID->err = target - feedback;
-    pPID->out_p = pPID->Kp * pPID->err * pPID->dt;
+    pPID->out_p = pPID->Kp * pPID->err;
     pPID->out_i = pPID->Ki * pPID->err_total * pPID->dt;
     #ifdef USE_Differential
-    pPID->out_d = pPID->Kd * (pPID->err - pPID->err_last) * pPID->dt;
+    pPID->out_d = pPID->Kd * (pPID->err - pPID->err_last) / pPID->dt;
     pPID->out_temp = pPID->out_p + pPID->out_i + pPID->out_d;
     #else
     pPID->out_temp = pPID->out_p + pPID->out_i;
@@ -45,7 +45,7 @@ float PID_Position_Run(PID_Position_t *pPID,float target,float feedback)
         #ifndef USE_Kb
         if(pPID->err < 0)
         {
-            pPID->err_total += pPID->err * pPID->dt;
+            pPID->err_total += pPID->err;
         }
         #endif
     }
@@ -55,7 +55,7 @@ float PID_Position_Run(PID_Position_t *pPID,float target,float feedback)
         #ifndef USE_Kb
         if(pPID->err > 0)
         {
-            pPID->err_total += pPID->err * pPID->dt;
+            pPID->err_total += pPID->err;
         }
         #endif
     }
@@ -63,12 +63,12 @@ float PID_Position_Run(PID_Position_t *pPID,float target,float feedback)
     {
         pPID->out = pPID->out_temp;
         #ifndef USE_Kb
-        pPID->err_total += pPID->err * pPID->dt;
+        pPID->err_total += pPID->err;
         #endif
     }
 
     #ifdef USE_Kb
-    pPID->err_total += ((pPID->out - pPID->out_temp) * pPID->Kb + pPID->err) * pPID->dt;
+    pPID->err_total += (pPID->out - pPID->out_temp) * pPID->Kb + pPID->err;
     #endif
 
     return pPID->out;
@@ -99,10 +99,10 @@ void PID_Delta_Reset(PID_Delta_t *pPID)
 float PID_Delta_Run(PID_Delta_t *pPID,float target,float feedback)
 {
     pPID->err_0 = target - feedback;
-    pPID->out_p = pPID->Kp * (pPID->err_0 - pPID->err_1) * pPID->dt;
+    pPID->out_p = pPID->Kp * (pPID->err_0 - pPID->err_1);
     pPID->out_i = pPID->Ki * pPID->err_0 * pPID->dt;
     #ifdef USE_Differential
-    pPID->out_d = pPID->Kd * (pPID->err_0 - 2 * pPID->err_1 - pPID->err_2) * pPID->dt;
+    pPID->out_d = pPID->Kd * (pPID->err_0 - 2 * pPID->err_1 - pPID->err_2) / pPID->dt;
     #endif
     pPID->err_1 = pPID->err_0;
     pPID->err_2 = pPID->err_1;

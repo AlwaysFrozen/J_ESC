@@ -47,10 +47,10 @@ FOC_HFI_Para_t HFI_para =
 {
     .HFI_Freq = 1000,
     .HFI_Polarity_judgment_ms = 10,
-    .HFI_Ud_amplitude = 0.1f,
+    .HFI_Ud_amplitude = 0.2f,
     .HFI_Ud_sign = 1,
-    .Kp = 0.0001f,
-    .Ki = 0.00001f,
+    .Kp = 0.1f,
+    .Ki = 0.1f,
 };
 
 void SVPWM_Update(float Ua_rate,float Ub_rate,float Ud_rate,float Uq_rate,float angle)
@@ -218,11 +218,10 @@ void HALL_Angle_Speed_Cali(void)
     if (Hall_Sensor.hall_index_last == Hall_Sensor.hall_index)
     {
         Hall_Sensor.hall_sector_cnt++;
-        // if (Hall_Sensor.hall_sector_cnt > foc_run.PWM_freq_now / (1000 / (1000 / (foc_ctrl.erpm_min * 6 / 60))))
-        if (Hall_Sensor.hall_sector_cnt > foc_run.PWM_freq_now * 10 / foc_ctrl.erpm_min)
+        if (Hall_Sensor.hall_sector_cnt > Hall_Sensor.hall_sector_cnt_last * 1.05f)
         {
             Hall_Sensor.e_speed = _sign(Hall_Sensor.e_speed) * _PI_3 / (float)Hall_Sensor.hall_sector_cnt; // rads/cycle
-            FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
+            // FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
 
             temp0 = hall_seq_calibration_120[Hall_Sensor.hall_index - 1] - 1;
             /*
@@ -251,6 +250,8 @@ void HALL_Angle_Speed_Cali(void)
     }
     else
     {
+        Hall_Sensor.hall_sector_cnt_last = Hall_Sensor.hall_sector_cnt;
+
         // if direction is CCW Hall_Sensor.e_angle_delta will be pi/3 otherwise 5*pi/3
         temp0 = hall_seq_calibration_120[Hall_Sensor.hall_index - 1] - 1;
         temp1 = hall_seq_calibration_120[Hall_Sensor.hall_index_last - 1] - 1;
@@ -269,7 +270,7 @@ void HALL_Angle_Speed_Cali(void)
                 else
                 {
                     Hall_Sensor.e_speed = -_PI_3 / (float)Hall_Sensor.hall_sector_cnt; // rads/cycle
-                    FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
+                    // FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
                 }
             }
             else
@@ -290,7 +291,7 @@ void HALL_Angle_Speed_Cali(void)
                 else
                 {
                     Hall_Sensor.e_speed = _PI_3 / (float)Hall_Sensor.hall_sector_cnt; // rads/cycle
-                    FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
+                    // FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
                 }
             }
             else
@@ -305,6 +306,7 @@ void HALL_Angle_Speed_Cali(void)
         Hall_Sensor.e_angle_observe = Hall_Sensor.e_angle;
     }
 
+    FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
     Hall_Sensor.e_rpm = Hall_Sensor.e_speed_f * foc_run.PWM_freq_now * 60 / _2PI;
 
     #if (FOC_DEBUG_HALL && FOC_DEBUG_HALL_USE_ANGLE) || (!FOC_DEBUG_HALL)
@@ -373,11 +375,10 @@ void HFI_Angle_Speed_Cali(void)
 
         // // HFI_para.HFI_e_angle = Normalize_Angle(atan2f(HFI_para.HFI_Ud_sign * HFI_para.HFI_Ib_delta,HFI_para.HFI_Ud_sign * HFI_para.HFI_Ia_delta));
         // HFI_para.HFI_e_angle = Normalize_Angle(atan2f(-HFI_para.HFI_Ud_sign * HFI_para.HFI_Ib_delta,-HFI_para.HFI_Ud_sign * HFI_para.HFI_Ia_delta) - _PI);
-        // // foc_para.e_angle = HFI_para.HFI_e_angle;
 
         // PLL
         HFI_para.err = HFI_para.HFI_Ud_sign * HFI_para.HFI_Ib_delta * cosf(HFI_para.theta) - HFI_para.HFI_Ud_sign * HFI_para.HFI_Ia_delta * sinf(HFI_para.theta);
-        HFI_para.Interg += HFI_para.err * HFI_para.Ki;
+        HFI_para.Interg += HFI_para.err * HFI_para.Ki / HFI_para.HFI_Freq;
         HFI_para.Ui = HFI_para.err * HFI_para.Kp + HFI_para.Interg;
         // HFI_para.speed_hz = HFI_para.Ui / (1.0f / HFI_para.HFI_Freq * _2PI);
         HFI_para.speed_hz = HFI_para.Ui * HFI_para.HFI_Freq / _2PI;
@@ -458,13 +459,13 @@ void SensorLess_Angle_Speed_Cali(void)
             if(foc_run.speed_loop_cnt >= foc_ctrl.speed_loop_div)
             {
                 foc_run.speed_loop_cnt = 0;
+                float startup_diff_angle = 0;
                 #if FOC_USE_SMO && !FOC_DEBUG_SMO
-                float startup_diff_angle = ABS_Angle_Delta(smo_observer.E_ang,foc_run.start_e_ang);
+                startup_diff_angle = ABS_Angle_Delta(smo_observer.E_ang,foc_run.start_e_ang);
                 #endif
                 #if FOC_USE_FLO && !FOC_DEBUG_FLO
-                float startup_diff_angle = ABS_Angle_Delta(flo_observer.E_ang,foc_run.start_e_ang);
+                startup_diff_angle = ABS_Angle_Delta(flo_observer.E_ang,foc_run.start_e_ang);
                 #endif
-                debug_arr[16] = startup_diff_angle;
                 /* rpp -> rads per period */
                 #if USE_S_CURVE_ACCELERATE
                 /*
@@ -689,8 +690,8 @@ void FOC_Process(void)
     #endif
 
         #if 1
-        Clarke_Transmission(phase_voltage_f[0], phase_voltage_f[1], phase_voltage_f[2], &foc_para.Ua, &foc_para.Ub);
-        Clarke_Transmission(phase_current_f[0], phase_current_f[1], phase_current_f[2], &foc_para.Ia, &foc_para.Ib);
+        Clarke_Transmission(phase_voltage_V_f[0], phase_voltage_V_f[1], phase_voltage_V_f[2], &foc_para.Ua, &foc_para.Ub);
+        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &foc_para.Ia, &foc_para.Ib);
         #else
         /*
         * Uan = Uag - Ung
@@ -704,21 +705,21 @@ void FOC_Process(void)
         * Ucn = -1 / 3 * Uag - 1 / 3 * Ubg + 2 / 3 * Ucg
         */
 
-        foc_para.U_ag = phase_voltage_f[0];
-        foc_para.U_bg = phase_voltage_f[1];
-        foc_para.U_cg = phase_voltage_f[2];
+        foc_para.U_ag = phase_voltage_V_f[0];
+        foc_para.U_bg = phase_voltage_V_f[1];
+        foc_para.U_cg = phase_voltage_V_f[2];
         
         foc_para.U_an = foc_para.U_ag * 0.6666666f - foc_para.U_bg * 0.3333333f - foc_para.U_cg * 0.3333333f;
         foc_para.U_bn = -foc_para.U_ag * 0.3333333f + foc_para.U_bg * 0.6666666f - foc_para.U_cg * 0.3333333f;
         foc_para.U_cn = -foc_para.U_ag * 0.3333333f - foc_para.U_bg * 0.3333333f + foc_para.U_cg * 0.6666666f;
+        
+        // foc_para.U_an = Virtual_Moto.V_bus_v_f * (foc_para.CMP1 * 0.6666666f - foc_para.CMP2 * 0.3333333f - foc_para.CMP3 * 0.3333333f) / foc_run.TIM1_ARR_now;
+        // foc_para.U_bn = Virtual_Moto.V_bus_v_f * (-foc_para.CMP1 * 0.3333333f + foc_para.CMP2 * 0.6666666f - foc_para.CMP3 * 0.3333333f) / foc_run.TIM1_ARR_now;
+        // foc_para.U_cn = Virtual_Moto.V_bus_v_f * (-foc_para.CMP1 * 0.3333333f - foc_para.CMP2 * 0.3333333f + foc_para.CMP3 * 0.6666666f) / foc_run.TIM1_ARR_now;
 
-        // foc_para.U_an = Virtual_Moto.V_bus_mv_f * (foc_para.CMP1 * 0.6666666f - foc_para.CMP2 * 0.3333333f - foc_para.CMP3 * 0.3333333f) / foc_run.TIM1_ARR_now;
-        // foc_para.U_bn = Virtual_Moto.V_bus_mv_f * (-foc_para.CMP1 * 0.3333333f + foc_para.CMP2 * 0.6666666f - foc_para.CMP3 * 0.3333333f) / foc_run.TIM1_ARR_now;
-        // foc_para.U_cn = Virtual_Moto.V_bus_mv_f * (-foc_para.CMP1 * 0.3333333f - foc_para.CMP2 * 0.3333333f + foc_para.CMP3 * 0.6666666f) / foc_run.TIM1_ARR_now;
-
-        foc_para.I_a = phase_current_f[0];
-        foc_para.I_b = phase_current_f[1];
-        foc_para.I_c = phase_current_f[2];
+        foc_para.I_a = phase_current_A_f[0];
+        foc_para.I_b = phase_current_A_f[1];
+        foc_para.I_c = phase_current_A_f[2];
 
         Clarke_Transmission(foc_para.U_an, foc_para.U_bn, foc_para.U_cn, &foc_para.Ua, &foc_para.Ub);
         Clarke_Transmission(foc_para.I_a, foc_para.I_b, foc_para.I_c, &foc_para.Ia, &foc_para.Ib);
@@ -772,7 +773,7 @@ void FOC_Process(void)
         if(foc_ctrl.current_loop)
         {
             #if USE_MTPA
-            MTPA_Cal(&foc_para,FLUXWb,DAxisInd,QAxisInd);
+            MTPA_Cal(&foc_para,FLUX_Wb,DAxisInd_H,QAxisInd_H);
             #endif
 
             if (foc_run.run_state != FOC_HFIRun)
@@ -812,12 +813,12 @@ void FOC_Process(void)
     }
     #endif
 
-    // debug_arr[0] = phase_current[0];
-    // debug_arr[1] = phase_current[1];
-    // debug_arr[2] = phase_current[2];
-    // debug_arr[3] = phase_current_f[0];
-    // debug_arr[4] = phase_current_f[1];
-    // debug_arr[5] = phase_current_f[2];
+    // debug_arr[0] = phase_current_A[0];
+    // debug_arr[1] = phase_current_A[1];
+    // debug_arr[2] = phase_current_A[2];
+    // debug_arr[3] = phase_current_A_f[0];
+    // debug_arr[4] = phase_current_A_f[1];
+    // debug_arr[5] = phase_current_A_f[2];
 
     debug_arr[0] = foc_para.Id_target;
     debug_arr[1] = foc_para.Id;
@@ -828,6 +829,11 @@ void FOC_Process(void)
     debug_arr[6] = foc_para.e_angle;
     // debug_arr[6] = foc_run.eletrical_Hz_f;
 
+    // debug_arr[7] = foc_para.Speed_target;
+    // debug_arr[8] = foc_run.eletrical_rpm_f;
+    // debug_arr[9] = foc_para.Position_target;
+    // debug_arr[10] = foc_para.m_angle_multicycle;
+
     // debug_arr[7] = foc_para.Id_f;
     // debug_arr[8] = foc_para.Iq_f;
     // debug_arr[7] = foc_para.Ua_rate;
@@ -836,8 +842,6 @@ void FOC_Process(void)
     // debug_arr[10] = foc_para.Uq_rate;
     // debug_arr[11] = foc_para.Us_rate;
     // debug_arr[12] = foc_para.Us_rate_f;
-    // debug_arr[13] = foc_para.Speed_target;
-    // debug_arr[14] = foc_run.eletrical_rpm_f;
 
     // debug_arr[7] = flo_observer.pll.theta;
     // debug_arr[8] = flo_observer.Theta;
@@ -863,8 +867,6 @@ void FOC_Process(void)
     // debug_arr[16] = smo_observer.IalphaError;
     // debug_arr[17] = smo_observer.IbetaError;
 
-
-
     debug_arr[7] = HFI_para.HFI_Ia_last;
     debug_arr[8] = HFI_para.HFI_Ia_now;
     debug_arr[9] = HFI_para.HFI_Ib_last;
@@ -875,12 +877,11 @@ void FOC_Process(void)
     debug_arr[14] = HFI_para.HFI_Ib_delta;
     debug_arr[15] = HFI_para.HFI_Id_P;
     debug_arr[16] = HFI_para.HFI_Id_N;
-    debug_arr[17] = HFI_para.HFI_e_angle;
-    debug_arr[18] = HFI_para.theta;
+    debug_arr[17] = HFI_para.theta;
 
-    // debug_arr[17] = smo_observer.Theta;
+    // debug_arr[16] = smo_observer.Theta;
     // debug_arr[17] = smo_observer.pll.theta;
-    // debug_arr[18] = flo_observer.pll.theta;
+    debug_arr[18] = flo_observer.pll.theta;
     debug_arr[19] = AS5048_para.e_angle;
     // debug_arr[19] = Normalize_Angle(Hall_Sensor.e_angle_observe);
 
@@ -980,6 +981,12 @@ void Start_FOC_Motor(void)
                     #endif
                     #endif
                 }
+
+            }
+            break;
+
+            default:
+            {
 
             }
             break;

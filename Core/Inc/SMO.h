@@ -9,7 +9,7 @@
 #include "FOC_Motor.h"
 
 #define SMO_USE_ARCTAN          1
-#define SMO_USE_PLL             0
+#define SMO_USE_PLL             1
 #define SMO_USE_PLL_SPEED       0
 
 #define SMO_USE_MEASURE_VOL     1

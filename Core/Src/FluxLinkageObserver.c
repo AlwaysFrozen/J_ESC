@@ -8,19 +8,21 @@ FLO_t flo_observer;
 void FLO_Init(FLO_t *obs)
 {
     memset(obs, 0, sizeof(FLO_t));
-    obs->pll.Kp = 0.05f;
-    obs->pll.Ki = 0.05f;
-    obs->rs_ohm = PhaseRes;
-    obs->ls_H = PhaseInd;
-    obs->flux_wb = FLUXWb;
+    obs->rs_ohm = PhaseRes_R;
+    obs->ls_H = PhaseInd_H;
+    obs->flux_wb = FLUX_Wb;
     obs->dt = 1.0f / FOC_CC_LOOP_FREQ;
 
     #ifdef MOTOR_2PP_SERVO
-    obs->gain = 0.05;
+    obs->gain = 500000;
+    obs->pll.Kp = 0.05f;
+    obs->pll.Ki = 100.0f;
     #endif
 
     #ifdef MOTOR_14PP_BLDC
-    obs->gain = 20;
+    obs->gain = 50000000;
+    obs->pll.Kp = 100.0f;
+    obs->pll.Ki = 100.0f;
     #endif
 }
 
@@ -55,7 +57,7 @@ void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para)
     // see https://zhuanlan.zhihu.com/p/652503676
     // cal pll speed
     obs->pll.err = obs->flux_r_b * cosf(obs->pll.theta) - obs->flux_r_a * sinf(obs->pll.theta);
-    obs->pll.Interg += obs->pll.err * obs->pll.Ki;
+    obs->pll.Interg += obs->pll.err * obs->pll.Ki * obs->dt;
     obs->pll.Ui = obs->pll.err * obs->pll.Kp + obs->pll.Interg;
     obs->pll.speed_hz = obs->pll.Ui / (obs->dt * _2PI);
     FirstOrder_LPF_Cacl(obs->pll.speed_hz, obs->pll.speed_hz_f, 0.003f);

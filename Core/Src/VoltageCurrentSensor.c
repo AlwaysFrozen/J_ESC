@@ -11,12 +11,12 @@ ADC_Cali_t adc_cali = {.ADC_Cali_Value[3] = 2047, .ADC_Cali_Value[4] = 2047, .AD
 
 uint16_t Vbus_ADC = 0;
 float adc_value[6] = {0};
-float phase_voltage[3] = {0};
-float phase_voltage_f[3] = {0};
-float phase_current[3] = {0};
-float phase_current_f[3] = {0};
-float *p_phase_voltage[3] = {&phase_voltage[0], &phase_voltage[1], &phase_voltage[2]};
-float *p_phase_current[3] = {&phase_current[0], &phase_current[1], &phase_current[2]};
+float phase_voltage_V[3] = {0};
+float phase_voltage_V_f[3] = {0};
+float phase_current_A[3] = {0};
+float phase_current_A_f[3] = {0};
+float *p_phase_voltage_V[3] = {&phase_voltage_V[0], &phase_voltage_V[1], &phase_voltage_V[2]};
+float *p_phase_current_A[3] = {&phase_current_A[0], &phase_current_A[1], &phase_current_A[2]};
 
 
 Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
@@ -74,7 +74,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     MOS_Driver_Enable();
     while(ccr_rate < 0.2f)
     {
-        if(fabsf(phase_current[0]) > current_limit || fabsf(phase_current[1]) > current_limit || fabsf(phase_current[2]) > current_limit)
+        if(fabsf(phase_current_A[0]) > current_limit || fabsf(phase_current_A[1]) > current_limit || fabsf(phase_current_A[2]) > current_limit)
         {
             if(current_stable_cnt++ > 500)
             {
@@ -92,26 +92,26 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     }
 
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[0] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[0] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = fabsf(phase_current[0] / phase_current[1]);//A / B
-    phase_current_ratio[1] = fabsf(phase_current[0] / phase_current[2]);//A / C
-    phase_current_ratio[2] = fabsf(phase_current[1] / phase_current[2]);//B / C
+    phase_current_ratio[0] = fabsf(phase_current_A[0] / phase_current_A[1]);//A / B
+    phase_current_ratio[1] = fabsf(phase_current_A[0] / phase_current_A[2]);//A / C
+    phase_current_ratio[2] = fabsf(phase_current_A[1] / phase_current_A[2]);//B / C
     if(Number_In_Absolute_Range_f32(phase_current_ratio[0],1.0f,0.35f))//A=B
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[1],0.5f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],0.5f,0.35f))//2A=2B=C
         {
-            p_phase_current[0] = &phase_current[2];
+            p_phase_current_A[0] = &phase_current_A[2];
         }
         else
         {
@@ -122,7 +122,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],0.5f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],2.0f,0.35f))//2A=B=2C
         {
-            p_phase_current[0] = &phase_current[1];
+            p_phase_current_A[0] = &phase_current_A[1];
         }
         else
         {
@@ -133,7 +133,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],2.0f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[1],2.0f,0.35f))//A=2B=2C
         {
-            p_phase_current[0] = &phase_current[0];
+            p_phase_current_A[0] = &phase_current_A[0];
         }
         else
         {
@@ -149,26 +149,26 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     Vector_3(arr,ccr);
     osDelay(500);
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[1] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[1] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = fabsf(phase_current[0] / phase_current[1]);//A / B
-    phase_current_ratio[1] = fabsf(phase_current[0] / phase_current[2]);//A / C
-    phase_current_ratio[2] = fabsf(phase_current[1] / phase_current[2]);//B / C
+    phase_current_ratio[0] = fabsf(phase_current_A[0] / phase_current_A[1]);//A / B
+    phase_current_ratio[1] = fabsf(phase_current_A[0] / phase_current_A[2]);//A / C
+    phase_current_ratio[2] = fabsf(phase_current_A[1] / phase_current_A[2]);//B / C
     if(Number_In_Absolute_Range_f32(phase_current_ratio[0],1.0f,0.35f))//A=B
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[1],0.5f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],0.5f,0.35f))//2A=2B=C
         {
-            p_phase_current[1] = &phase_current[2];
+            p_phase_current_A[1] = &phase_current_A[2];
         }
         else
         {
@@ -179,7 +179,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],0.5f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],2.0f,0.35f))//2A=B=2C
         {
-            p_phase_current[1] = &phase_current[1];
+            p_phase_current_A[1] = &phase_current_A[1];
         }
         else
         {
@@ -190,7 +190,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],2.0f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[1],2.0f,0.35f))//A=2B=2C
         {
-            p_phase_current[1] = &phase_current[0];
+            p_phase_current_A[1] = &phase_current_A[0];
         }
         else
         {
@@ -206,26 +206,26 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     Vector_5(arr,ccr);
     osDelay(500);
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[2] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[2] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = fabsf(phase_current[0] / phase_current[1]);//A / B
-    phase_current_ratio[1] = fabsf(phase_current[0] / phase_current[2]);//A / C
-    phase_current_ratio[2] = fabsf(phase_current[1] / phase_current[2]);//B / C
+    phase_current_ratio[0] = fabsf(phase_current_A[0] / phase_current_A[1]);//A / B
+    phase_current_ratio[1] = fabsf(phase_current_A[0] / phase_current_A[2]);//A / C
+    phase_current_ratio[2] = fabsf(phase_current_A[1] / phase_current_A[2]);//B / C
     if(Number_In_Absolute_Range_f32(phase_current_ratio[0],1.0f,0.35f))//A=B
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[1],0.5f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],0.5f,0.35f))//2A=2B=C
         {
-            p_phase_current[2] = &phase_current[2];
+            p_phase_current_A[2] = &phase_current_A[2];
         }
         else
         {
@@ -236,7 +236,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],0.5f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],2.0f,0.35f))//2A=B=2C
         {
-            p_phase_current[2] = &phase_current[1];
+            p_phase_current_A[2] = &phase_current_A[1];
         }
         else
         {
@@ -247,7 +247,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],2.0f,0.35f) && Number_In_Absolute_Range_f32(phase_current_ratio[1],2.0f,0.35f))//A=2B=2C
         {
-            p_phase_current[2] = &phase_current[0];
+            p_phase_current_A[2] = &phase_current_A[0];
         }
         else
         {
@@ -269,7 +269,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     MOS_Driver_Enable();
     while(ccr_rate < 0.2f)
     {
-        if(fabsf(phase_current[0]) > current_limit || fabsf(phase_current[1]) > current_limit || fabsf(phase_current[2]) > current_limit)
+        if(fabsf(phase_current_A[0]) > current_limit || fabsf(phase_current_A[1]) > current_limit || fabsf(phase_current_A[2]) > current_limit)
         {
             if(current_stable_cnt++ > 500)
             {
@@ -287,26 +287,26 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     }
 
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[0] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[0] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = phase_current[0] / phase_current[1];//A / B
-    phase_current_ratio[1] = phase_current[0] / phase_current[2];//A / C
-    phase_current_ratio[2] = phase_current[1] / phase_current[2];//B / C
+    phase_current_ratio[0] = phase_current_A[0] / phase_current_A[1];//A / B
+    phase_current_ratio[1] = phase_current_A[0] / phase_current_A[2];//A / C
+    phase_current_ratio[2] = phase_current_A[1] / phase_current_A[2];//B / C
     if(Number_In_Absolute_Range_f32(phase_current_ratio[0],1.0f,0.5f))//A=B
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[1],-0.5f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],-0.5f,0.5f))//-2A=-2B=C
         {
-            p_phase_current[0] = &phase_current[2];
+            p_phase_current_A[0] = &phase_current_A[2];
         }
         else
         {
@@ -317,7 +317,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],-0.5f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],-2.0f,0.5f))//-2A=B=-2C
         {
-            p_phase_current[0] = &phase_current[1];
+            p_phase_current_A[0] = &phase_current_A[1];
         }
         else
         {
@@ -328,7 +328,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],-2.0f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[1],-2.0f,0.5f))//A=-2B=-2C
         {
-            p_phase_current[0] = &phase_current[0];
+            p_phase_current_A[0] = &phase_current_A[0];
         }
         else
         {
@@ -344,26 +344,26 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     Vector_3(arr,ccr);
     osDelay(500);
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[1] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[1] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = phase_current[0] / phase_current[1];//A / B
-    phase_current_ratio[1] = phase_current[0] / phase_current[2];//A / C
-    phase_current_ratio[2] = phase_current[1] / phase_current[2];//B / C
+    phase_current_ratio[0] = phase_current_A[0] / phase_current_A[1];//A / B
+    phase_current_ratio[1] = phase_current_A[0] / phase_current_A[2];//A / C
+    phase_current_ratio[2] = phase_current_A[1] / phase_current_A[2];//B / C
     if(Number_In_Absolute_Range_f32(phase_current_ratio[0],1.0f,0.5f))//A=B
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[1],-0.5f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],-0.5f,0.5f))//-2A=-2B=C
         {
-            p_phase_current[1] = &phase_current[2];
+            p_phase_current_A[1] = &phase_current_A[2];
         }
         else
         {
@@ -374,7 +374,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],-0.5f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],-2.0f,0.5f))//-2A=B=-2C
         {
-            p_phase_current[1] = &phase_current[1];
+            p_phase_current_A[1] = &phase_current_A[1];
         }
         else
         {
@@ -385,7 +385,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],-2.0f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[1],-2.0f,0.5f))//A=-2B=-2C
         {
-            p_phase_current[1] = &phase_current[0];
+            p_phase_current_A[1] = &phase_current_A[0];
         }
         else
         {
@@ -401,26 +401,26 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     Vector_5(arr,ccr);
     osDelay(500);
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[2] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[2] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = phase_current[0] / phase_current[1];//A / B
-    phase_current_ratio[1] = phase_current[0] / phase_current[2];//A / C
-    phase_current_ratio[2] = phase_current[1] / phase_current[2];//B / C
+    phase_current_ratio[0] = phase_current_A[0] / phase_current_A[1];//A / B
+    phase_current_ratio[1] = phase_current_A[0] / phase_current_A[2];//A / C
+    phase_current_ratio[2] = phase_current_A[1] / phase_current_A[2];//B / C
     if(Number_In_Absolute_Range_f32(phase_current_ratio[0],1.0f,0.5f))//A=B
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[1],-0.5f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],-0.5f,0.5f))//-2A=-2B=C
         {
-            p_phase_current[2] = &phase_current[2];
+            p_phase_current_A[2] = &phase_current_A[2];
         }
         else
         {
@@ -431,7 +431,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],-0.5f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[2],-2.0f,0.5f))//-2A=B=-2C
         {
-            p_phase_current[2] = &phase_current[1];
+            p_phase_current_A[2] = &phase_current_A[1];
         }
         else
         {
@@ -442,7 +442,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     {
         if(Number_In_Absolute_Range_f32(phase_current_ratio[0],-2.0f,0.5f) && Number_In_Absolute_Range_f32(phase_current_ratio[1],-2.0f,0.5f))//A=-2B=-2C
         {
-            p_phase_current[2] = &phase_current[0];
+            p_phase_current_A[2] = &phase_current_A[0];
         }
         else
         {
@@ -464,7 +464,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     MOS_Driver_Enable();
     while(ccr_rate < 0.2f)
     {
-        if(fabsf(phase_current[0]) > current_limit || fabsf(phase_current[1]) > current_limit || fabsf(phase_current[2]) > current_limit)
+        if(fabsf(phase_current_A[0]) > current_limit || fabsf(phase_current_A[1]) > current_limit || fabsf(phase_current_A[2]) > current_limit)
         {
             if(current_stable_cnt++ > 500)
             {
@@ -482,45 +482,45 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     }
 
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[0] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[0] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    if(phase_current[2] > 0)// A<0 B<0 C>0
+    if(phase_current_A[2] > 0)// A<0 B<0 C>0
     {
-        if(phase_current[0] < 0 && phase_current[1] < 0)//-2A=-2B=C
+        if(phase_current_A[0] < 0 && phase_current_A[1] < 0)//-2A=-2B=C
         {
-            p_phase_current[0] = &phase_current[2];
+            p_phase_current_A[0] = &phase_current_A[2];
         }
         else
         {
             err |= Sensor_Cali_Err_PHASE_I_ORDER;
         }
     }
-    else if(phase_current[1] > 0)// A<0 B>0 C<0
+    else if(phase_current_A[1] > 0)// A<0 B>0 C<0
     {
-        if(phase_current[0] < 0 && phase_current[2] < 0)//-2A=B=-2C
+        if(phase_current_A[0] < 0 && phase_current_A[2] < 0)//-2A=B=-2C
         {
-            p_phase_current[0] = &phase_current[1];
+            p_phase_current_A[0] = &phase_current_A[1];
         }
         else
         {
             err |= Sensor_Cali_Err_PHASE_I_ORDER;
         }
     }
-    else if(phase_current[0] > 0)// A>0 B<0 C<0
+    else if(phase_current_A[0] > 0)// A>0 B<0 C<0
     {
-        if(phase_current[1] < 0 && phase_current[2] < 0)//A=-2B=-2C
+        if(phase_current_A[1] < 0 && phase_current_A[2] < 0)//A=-2B=-2C
         {
-            p_phase_current[0] = &phase_current[0];
+            p_phase_current_A[0] = &phase_current_A[0];
         }
         else
         {
@@ -536,45 +536,45 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     Vector_3(arr,ccr);
     osDelay(500);
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[1] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[1] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    if(phase_current[2] > 0)// A<0 B<0 C>0
+    if(phase_current_A[2] > 0)// A<0 B<0 C>0
     {
-        if(phase_current[0] < 0 && phase_current[1] < 0)//-2A=-2B=C
+        if(phase_current_A[0] < 0 && phase_current_A[1] < 0)//-2A=-2B=C
         {
-            p_phase_current[1] = &phase_current[2];
+            p_phase_current_A[1] = &phase_current_A[2];
         }
         else
         {
             err |= Sensor_Cali_Err_PHASE_I_ORDER;
         }
     }
-    else if(phase_current[1] > 0)// A<0 B>0 C<0
+    else if(phase_current_A[1] > 0)// A<0 B>0 C<0
     {
-        if(phase_current[0] < 0 && phase_current[2] < 0)//-2A=B=-2C
+        if(phase_current_A[0] < 0 && phase_current_A[2] < 0)//-2A=B=-2C
         {
-            p_phase_current[1] = &phase_current[1];
+            p_phase_current_A[1] = &phase_current_A[1];
         }
         else
         {
             err |= Sensor_Cali_Err_PHASE_I_ORDER;
         }
     }
-    else if(phase_current[0] > 0)// A>0 B<0 C<0
+    else if(phase_current_A[0] > 0)// A>0 B<0 C<0
     {
-        if(phase_current[1] < 0 && phase_current[2] < 0)//A=-2B=-2C
+        if(phase_current_A[1] < 0 && phase_current_A[2] < 0)//A=-2B=-2C
         {
-            p_phase_current[1] = &phase_current[0];
+            p_phase_current_A[1] = &phase_current_A[0];
         }
         else
         {
@@ -590,48 +590,48 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
     Vector_5(arr,ccr);
     osDelay(500);
     //phase voltage
-    memcpy(phase_voltage_sort,phase_voltage,sizeof(phase_voltage_sort));
+    memcpy(phase_voltage_sort,phase_voltage_V,sizeof(phase_voltage_sort));
     phase_voltage_sort_index[0] = 0;phase_voltage_sort_index[1] = 1;phase_voltage_sort_index[2] = 2;
     Index_Sort(phase_voltage_sort,3,phase_voltage_sort_index);
-    if(phase_voltage[phase_voltage_sort_index[0]] < 300 && phase_voltage[phase_voltage_sort_index[1]] < 300 && phase_voltage[phase_voltage_sort_index[2]] > 300)
+    if(phase_voltage_V[phase_voltage_sort_index[0]] < 300 && phase_voltage_V[phase_voltage_sort_index[1]] < 300 && phase_voltage_V[phase_voltage_sort_index[2]] > 300)
     {
-        p_phase_voltage[2] = &phase_voltage[phase_voltage_sort_index[2]];
+        p_phase_voltage_V[2] = &phase_voltage_V[phase_voltage_sort_index[2]];
     }
     else
     {
         err |= Sensor_Cali_Err_PHASE_V_ORDER;
     }
     //phase current
-    phase_current_ratio[0] = phase_current[0] / phase_current[1];//A / B
-    phase_current_ratio[1] = phase_current[0] / phase_current[2];//A / C
-    phase_current_ratio[2] = phase_current[1] / phase_current[2];//B / C
-    if(phase_current[2] > 0)// A<0 B<0 C>0
+    phase_current_ratio[0] = phase_current_A[0] / phase_current_A[1];//A / B
+    phase_current_ratio[1] = phase_current_A[0] / phase_current_A[2];//A / C
+    phase_current_ratio[2] = phase_current_A[1] / phase_current_A[2];//B / C
+    if(phase_current_A[2] > 0)// A<0 B<0 C>0
     {
-        if(phase_current[0] < 0 && phase_current[1] < 0)//-2A=-2B=C
+        if(phase_current_A[0] < 0 && phase_current_A[1] < 0)//-2A=-2B=C
         {
-            p_phase_current[2] = &phase_current[2];
+            p_phase_current_A[2] = &phase_current_A[2];
         }
         else
         {
             err |= Sensor_Cali_Err_PHASE_I_ORDER;
         }
     }
-    else if(phase_current[1] > 0)// A<0 B>0 C<0
+    else if(phase_current_A[1] > 0)// A<0 B>0 C<0
     {
-        if(phase_current[0] < 0 && phase_current[2] < 0)//-2A=B=-2C
+        if(phase_current_A[0] < 0 && phase_current_A[2] < 0)//-2A=B=-2C
         {
-            p_phase_current[2] = &phase_current[1];
+            p_phase_current_A[2] = &phase_current_A[1];
         }
         else
         {
             err |= Sensor_Cali_Err_PHASE_I_ORDER;
         }
     }
-    else if(phase_current[0] > 0)// A>0 B<0 C<0
+    else if(phase_current_A[0] > 0)// A>0 B<0 C<0
     {
-        if(phase_current[1] < 0 && phase_current[2] < 0)//A=-2B=-2C
+        if(phase_current_A[1] < 0 && phase_current_A[2] < 0)//A=-2B=-2C
         {
-            p_phase_current[2] = &phase_current[0];
+            p_phase_current_A[2] = &phase_current_A[0];
         }
         else
         {

@@ -24,26 +24,26 @@ void SMO_Init(SMO_t *s)
     //     measured from phase to phase, then L = 1 mH
 
     float TemporalFloat;
-    TemporalFloat = 1 - PhaseRes * LoopTimeInSec / PhaseInd;
+    TemporalFloat = 1 - PhaseRes_R * LoopTimeInSec / PhaseInd_H;
     if (TemporalFloat < 0.0f)
         s->Fsmopos = 0.0f;
     else
         s->Fsmopos = TemporalFloat;
 
-    TemporalFloat = LoopTimeInSec / PhaseInd;
+    TemporalFloat = LoopTimeInSec / PhaseInd_H;
     if (TemporalFloat > 1.0f)
         s->Gsmopos = 0.99999f;
     else
         s->Gsmopos = TemporalFloat;
 
 #if IS_IPM
-    TemporalFloat = 1 - PhaseRes * LoopTimeInSec / DAxisInd;
+    TemporalFloat = 1 - PhaseRes_R * LoopTimeInSec / DAxisInd_H;
     if (TemporalFloat < 0.0f)
         s->Fsmopos_DAxis = 0.0f;
     else
         s->Fsmopos_DAxis = TemporalFloat;
 
-    TemporalFloat = LoopTimeInSec / DAxisInd;
+    TemporalFloat = LoopTimeInSec / DAxisInd_H;
     if (TemporalFloat > 1.0f)
         s->Gsmopos_DAxis = 0.99999f;
     else
@@ -52,25 +52,29 @@ void SMO_Init(SMO_t *s)
     /*
     * https://zhuanlan.zhihu.com/p/416224632
     * Kslide should greater than the max value of them
-    * fabsf(-1 * PhaseRes * smo_observer.EstIalpha) + smo_observer.Zalpha * SIGN(smo_observer.EstIalpha) - smo_observer.E_rps * _2PI * (DAxisInd - QAxisInd) * smo_observer.EstIbeta * SIGN(smo_observer.EstIalpha);
-    * fabsf(-1 * PhaseRes * smo_observer.EstIbeta) + smo_observer.Zbeta * SIGN(smo_observer.EstIbeta) + smo_observer.E_rps * _2PI * (DAxisInd - QAxisInd) * smo_observer.EstIalpha * SIGN(smo_observer.EstIbeta);
+    * fabsf(-1 * PhaseRes_R * smo_observer.EstIalpha) + smo_observer.Zalpha * SIGN(smo_observer.EstIalpha) - smo_observer.E_rps * _2PI * (DAxisInd_H - QAxisInd_H) * smo_observer.EstIbeta * SIGN(smo_observer.EstIalpha);
+    * fabsf(-1 * PhaseRes_R * smo_observer.EstIbeta) + smo_observer.Zbeta * SIGN(smo_observer.EstIbeta) + smo_observer.E_rps * _2PI * (DAxisInd_H - QAxisInd_H) * smo_observer.EstIalpha * SIGN(smo_observer.EstIbeta);
     */
 
     #ifdef MOTOR_2PP_SERVO
-    s->Kslide = 1000;//5000;
-    s->MaxErr = 100;//300;
+    s->Kslide = 10;
+    s->MaxErr = 1;
     #endif
 
     #ifdef MOTOR_14PP_BLDC
-    s->Kslide = 4000;
-    s->MaxErr = 2500;
+    s->Kslide = 1;
+    s->MaxErr = 1;
     #endif
 
 #if SMO_USE_ARCTAN
-    /* filter coef = 2*pi*Erps/fpwm */
-    s->Kslf = _2PI * MinErpm / 60 / FOC_CC_LOOP_FREQ;
-    s->KslfMin = _2PI * MinErpm / 60 / FOC_CC_LOOP_FREQ;
-    s->SpeedFilter = 0.003;
+    // /* filter coef = 2*pi*Erps/fpwm */
+    // s->Kslf = 5 * _2PI * MinErpm / 60 / FOC_CC_LOOP_FREQ;
+    // s->KslfMin = 5 * _2PI * MinErpm / 60 / FOC_CC_LOOP_FREQ;
+
+    s->Kslf = 0.01f;
+    s->KslfMin = 0.01f;
+
+    s->SpeedFilter = 0.003f;
     s->ThetaOffset = 0;
 
     s->PrevTheta = 0;
@@ -82,7 +86,7 @@ void SMO_Init(SMO_t *s)
 #if SMO_USE_PLL
     s->ThetaOffset = 0;
     s->pll.Kp = 0.0001f;
-    s->pll.Ki = 0.00001f;
+    s->pll.Ki = 0.2f;
 #endif
 }
 
@@ -94,8 +98,8 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     s->Ialpha = foc_para->Ia;
     s->Ibeta = foc_para->Ib;
 #else
-    s->Valpha = foc_para->Ua_rate * Virtual_Moto.V_bus_mv_f * 0.6666666f;
-    s->Vbeta = foc_para->Ub_rate * Virtual_Moto.V_bus_mv_f * 0.6666666f;
+    s->Valpha = foc_para->Ua_rate * Virtual_Moto.V_bus_v_f * 0.6666666f;
+    s->Vbeta = foc_para->Ub_rate * Virtual_Moto.V_bus_v_f * 0.6666666f;
     s->Ialpha = foc_para->Ia;
     s->Ibeta = foc_para->Ib;
 #endif
@@ -103,8 +107,8 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     // Sliding mode current observer
 #if IS_IPM
     // https://zhuanlan.zhihu.com/p/421676488 for IPM
-    s->EstIalpha = s->Fsmopos_DAxis * s->EstIalpha + s->Gsmopos_DAxis * (s->Valpha - s->Ealpha - s->Zalpha) - fabsf(s->E_rps) * _2PI * LoopTimeInSec * (DAxisInd - QAxisInd) * s->EstIbeta / DAxisInd;
-    s->EstIbeta = s->Fsmopos_DAxis * s->EstIbeta + s->Gsmopos_DAxis * (s->Vbeta - s->Ebeta - s->Zbeta) + fabsf(s->E_rps) * _2PI * LoopTimeInSec * (DAxisInd - QAxisInd) * s->EstIalpha / DAxisInd;
+    s->EstIalpha = s->Fsmopos_DAxis * s->EstIalpha + s->Gsmopos_DAxis * (s->Valpha - s->Ealpha - s->Zalpha) - fabsf(s->E_rps) * _2PI * LoopTimeInSec * (DAxisInd_H - QAxisInd_H) * s->EstIbeta / DAxisInd_H;
+    s->EstIbeta = s->Fsmopos_DAxis * s->EstIbeta + s->Gsmopos_DAxis * (s->Vbeta - s->Ebeta - s->Zbeta) + fabsf(s->E_rps) * _2PI * LoopTimeInSec * (DAxisInd_H - QAxisInd_H) * s->EstIalpha / DAxisInd_H;
 #else
     // AN1078 for SPM
     s->EstIalpha = s->Fsmopos * s->EstIalpha + s->Gsmopos * (s->Valpha - s->Ealpha - s->Zalpha);
@@ -148,7 +152,7 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     // see https://zhuanlan.zhihu.com/p/652503676
     // s->pll.err = SIGN(s->pll.Ui) * -s->Zalpha * cosf(s->pll.theta) - SIGN(s->pll.Ui) * s->Zbeta * sinf(s->pll.theta);
     s->pll.err = -s->Zalpha * cosf(s->pll.theta) - s->Zbeta * sinf(s->pll.theta);
-    s->pll.Interg += s->pll.err * s->pll.Ki;
+    s->pll.Interg += s->pll.err * s->pll.Ki * LoopTimeInSec;
     s->pll.Ui = s->pll.err * s->pll.Kp + s->pll.Interg;
     s->pll.theta += s->pll.Ui;
     s->pll.speed_hz = s->pll.Ui / (LoopTimeInSec * _2PI);

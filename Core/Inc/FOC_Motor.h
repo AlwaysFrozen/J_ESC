@@ -88,7 +88,7 @@ typedef struct
     uint8_t is_running;
     FOC_Run_State_t run_state;
     /* sensorless IF start up */
-    int32_t start_iq_now;
+    float start_iq_now;
     float start_rpp_now;
     float start_e_ang;
     uint32_t start_cnt;
@@ -117,8 +117,8 @@ typedef struct
     SENSOR_Type_t sensor_type;
     /* sensorless IF start up */
     int32_t startup_erpm;
-    int32_t startup_iq_max;
-    int32_t startup_iq_min;
+    float startup_iq_max;
+    float startup_iq_min;
     uint32_t startup_order_ms;
     uint32_t startup_acc_ms;
     /* sensorless stall protection */

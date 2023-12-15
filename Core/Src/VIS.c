@@ -121,27 +121,27 @@ void VIS_Process(void)
                     switch(vis_run.step_index_now)
                     {
                         case 1:
-                            current_list[0] = fabsf(phase_current[0]);
+                            current_list[0] = fabsf(phase_current_A[0]);
                             break;
 
                         case 4:
-                            current_list[1] = fabsf(phase_current[0]);
+                            current_list[1] = fabsf(phase_current_A[0]);
                             break;
 
                         case 2:
-                            current_list[2] = fabsf(phase_current[2]);
+                            current_list[2] = fabsf(phase_current_A[2]);
                             break;
                         
                         case 5:
-                            current_list[3] = fabsf(phase_current[2]);
+                            current_list[3] = fabsf(phase_current_A[2]);
                             break;
 
                         case 3:
-                            current_list[4] = fabsf(phase_current[1]);
+                            current_list[4] = fabsf(phase_current_A[1]);
                             break;
                         
                         case 6:
-                            current_list[5] = fabsf(phase_current[1]);
+                            current_list[5] = fabsf(phase_current_A[1]);
                             // index = (uint8_t)(current_list[0] < current_list[1]) + ((uint8_t)(current_list[2] < current_list[3]) << 1) + ((uint8_t)(current_list[4] < current_list[5]) << 2);
                             index = (uint8_t)(current_list[0] > current_list[1]) + ((uint8_t)(current_list[2] > current_list[3]) << 1) + ((uint8_t)(current_list[4] > current_list[5]) << 2);
                             index_list[--vis_run.loop_num_cnt] = index;
@@ -284,18 +284,18 @@ void VIS_Process(void)
         }
     }
 
-    // debug_arr[0] = phase_voltage[0];
-    // debug_arr[1] = phase_voltage[1];
-    // debug_arr[2] = phase_voltage[2];
-    // debug_arr[3] = phase_voltage_f[0];
-    // debug_arr[4] = phase_voltage_f[1];
-    // debug_arr[5] = phase_voltage_f[2];
-    // debug_arr[6] = fabsf(phase_current[0]);
-    // debug_arr[7] = fabsf(phase_current[1]);
-    // debug_arr[8] = fabsf(phase_current[2]);
-    // debug_arr[9] = phase_current_f[0];
-    // debug_arr[10] = phase_current_f[1];
-    // debug_arr[11] = phase_current_f[2];
+    // debug_arr[0] = phase_voltage_V[0];
+    // debug_arr[1] = phase_voltage_V[1];
+    // debug_arr[2] = phase_voltage_V[2];
+    // debug_arr[3] = phase_voltage_V_f[0];
+    // debug_arr[4] = phase_voltage_V_f[1];
+    // debug_arr[5] = phase_voltage_V_f[2];
+    // debug_arr[6] = fabsf(phase_current_A[0]);
+    // debug_arr[7] = fabsf(phase_current_A[1]);
+    // debug_arr[8] = fabsf(phase_current_A[2]);
+    // debug_arr[9] = phase_current_A_f[0];
+    // debug_arr[10] = phase_current_A_f[1];
+    // debug_arr[11] = phase_current_A_f[2];
     // debug_arr[12] = vis_run.step_index_now;
     // debug_arr[13] = vis_run.step_index_next;
     // debug_arr[14] = vis_run.VIS_index;

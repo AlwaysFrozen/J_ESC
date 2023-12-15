@@ -58,7 +58,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 1
     while (foc_para.Id < current_limit)
     {
-        Clarke_Transmission(phase_current_f[0], phase_current_f[1], phase_current_f[2], &foc_para.Ia, &foc_para.Ib);
+        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &foc_para.Ia, &foc_para.Ib);
         Park_Transmission(foc_para.Ia, foc_para.Ib, &foc_para.Id, &foc_para.Iq, DEG_TO_RAD(e_degree));
         Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree));
         SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));

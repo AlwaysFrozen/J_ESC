@@ -28,6 +28,7 @@ typedef struct
     uint8_t hall_index;
     uint8_t hall_index_last;
     uint32_t hall_sector_cnt;
+    uint32_t hall_sector_cnt_last;
 
     float e_angle;
     float e_angle_delta;

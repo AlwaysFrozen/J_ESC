@@ -22,12 +22,12 @@ extern ADC_Cali_t adc_cali;
 
 extern uint16_t Vbus_ADC;
 extern float adc_value[6];
-extern float phase_voltage[3];
-extern float phase_voltage_f[3];
-extern float phase_current[3];
-extern float phase_current_f[3];
-extern float *p_phase_voltage[3];
-extern float *p_phase_current[3];
+extern float phase_voltage_V[3];
+extern float phase_voltage_V_f[3];
+extern float phase_current_A[3];
+extern float phase_current_A_f[3];
+extern float *p_phase_voltage_V[3];
+extern float *p_phase_current_A[3];
 
 Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void);
 

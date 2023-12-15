@@ -30,6 +30,9 @@ BLDC_CONTROL_t  bldc_ctrl =
     .start_step_min = 6,
     .start_step_max = 60,
     .start_max_mse = 20,
+    /* sensorless run config */ 
+    .befm_detect_delay_angle = 20,
+    .befm_filter_angle = 5,
     /* stall protect */ 
     .stall_protect_ms = 100,
     .stall_protect_mse = 200,
@@ -182,7 +185,7 @@ void Plug_Brake(void)
     }
     else if(bldc_run.delay_Cnt == bldc_run.delay_angle_cnt_ref * 2)
     {
-        if(phase_voltage_f[0] < 200)
+        if(phase_voltage_V_f[0] < 200)
         {
             temp_ccer |= 0x005;
         }
@@ -191,7 +194,7 @@ void Plug_Brake(void)
             temp_ccer &= ~0x005;
         }
 
-        if(phase_voltage_f[1] < 200)
+        if(phase_voltage_V_f[1] < 200)
         {
             temp_ccer |= 0x050;
         }
@@ -200,7 +203,7 @@ void Plug_Brake(void)
             temp_ccer &= ~0x050;
         }
 
-        if(phase_voltage_f[2] < 200)
+        if(phase_voltage_V_f[2] < 200)
         {
             temp_ccer |= 0x500;
         }
@@ -224,11 +227,7 @@ void Plug_Brake(void)
 #if 0
 static void Update_Filter_Value(uint8_t len)
 {
-    if(len < 1)
-    {
-        len = 1;
-    }
-
+    len = _constrain(len,0,31);
     if(bldc_ctrl.sensor_type == SENSOR_LESS)
     {
         bldc_run.befm_filter_len = len;
@@ -252,19 +251,11 @@ static void Update_Filter_Value(uint8_t len)
 
 static void Update_Filter_Value_Fast(uint8_t len)
 {
-    if(len < 1)
-    {
-        len = 1;
-    }
-    else if(len > 32)
-    {
-        len = 32;
-    }
-
+    len = _constrain(len,0,31);
     bldc_run.befm_filter_len = len;
-    bldc_run.befm_filter_value = filter_value_list[len - 1];
+    bldc_run.befm_filter_value = filter_value_list[len];
     Hall_Sensor.hall_filter_len = len;
-    Hall_Sensor.hall_filter_value = filter_value_list[len - 1];
+    Hall_Sensor.hall_filter_value = filter_value_list[len];
 }
 
 static void HallLess_MOS_Switch(uint8_t step)
@@ -499,56 +490,37 @@ static void Hall_MOS_Switch(uint8_t step)
 
 static void VVVF_Process(void)
 {
-    if(bldc_run.run_state == BLDC_StartUp)
+    switch(bldc_ctrl.VVVF_method)
     {
-        if(bldc_ctrl.VVVF_method > BLDC_VVVF_None)
-        {
-            bldc_run.PWM_freq_now = (bldc_ctrl.PWM_freq_max - bldc_ctrl.PWM_freq_min) * bldc_ctrl.start_force + bldc_ctrl.PWM_freq_min;
-        }
-        else
-        {
+        case BLDC_VVVF_None:
             bldc_run.PWM_freq_now = bldc_ctrl.PWM_freq_min;
-        }
-    }
-    else //if(bldc_run.run_state == BLDC_Run)
-    {
-        switch(bldc_ctrl.VVVF_method)
-        {
-            case BLDC_VVVF_None:
-                bldc_run.PWM_freq_now = bldc_ctrl.PWM_freq_min;
-                break;
+            break;
 
-            case BLDC_VVVF_VF:
-                bldc_run.PWM_freq_now = (bldc_ctrl.PWM_freq_max - bldc_ctrl.PWM_freq_min) * bldc_ctrl.output + bldc_ctrl.PWM_freq_min;
-                break;
+        case BLDC_VVVF_VF:
+            bldc_run.PWM_freq_now = (bldc_ctrl.PWM_freq_max - bldc_ctrl.PWM_freq_min) * bldc_ctrl.output + bldc_ctrl.PWM_freq_min;
+            break;
 
-            case BLDC_VVVF_FF:
-                // bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) / 60 * 6 * bldc_ctrl.VVVF_ratio;
-                bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) * bldc_ctrl.VVVF_ratio / 10;
-                bldc_run.PWM_freq_now = _constrain(bldc_run.PWM_freq_now, bldc_ctrl.PWM_freq_min, bldc_ctrl.PWM_freq_max);
-                break;
+        case BLDC_VVVF_FF:
+            // bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) / 60 * 6 * bldc_ctrl.VVVF_ratio;
+            bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) * bldc_ctrl.VVVF_ratio / 10;
+            bldc_run.PWM_freq_now = _constrain(bldc_run.PWM_freq_now, bldc_ctrl.PWM_freq_min, bldc_ctrl.PWM_freq_max);
+            break;
 
-            case BLDC_VVVF_VFF:
-                // bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) / 60 * 6 * bldc_ctrl.VVVF_ratio;
-                bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) * bldc_ctrl.VVVF_ratio / 10;
-                bldc_run.PWM_freq_now = _constrain(bldc_run.PWM_freq_now, ((bldc_ctrl.PWM_freq_max - bldc_ctrl.PWM_freq_min) * bldc_ctrl.output + bldc_ctrl.PWM_freq_min), bldc_ctrl.PWM_freq_max);
-                break;
+        case BLDC_VVVF_VFF:
+            // bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) / 60 * 6 * bldc_ctrl.VVVF_ratio;
+            bldc_run.PWM_freq_now = abs(bldc_run.eletrical_rpm) * bldc_ctrl.VVVF_ratio / 10;
+            bldc_run.PWM_freq_now = _constrain(bldc_run.PWM_freq_now, ((bldc_ctrl.PWM_freq_max - bldc_ctrl.PWM_freq_min) * bldc_ctrl.output + bldc_ctrl.PWM_freq_min), bldc_ctrl.PWM_freq_max);
+            break;
 
-            default:
-                bldc_run.PWM_freq_now = bldc_ctrl.PWM_freq_max;
-                break;
-        }
-
-        bldc_run.duty = (bldc_run.TIM1_ARR_now - 1) * bldc_ctrl.output;
+        default:
+            bldc_run.PWM_freq_now = bldc_ctrl.PWM_freq_max;
+            break;
     }
 
+    bldc_run.duty = (bldc_run.TIM1_ARR_now - 1) * bldc_ctrl.output;
     bldc_run.TIM1_ARR_now = PWM_TIM_BASE_FREQ / 2 / bldc_run.PWM_freq_now;
-    Virtual_Moto.dt = 1.0f / bldc_run.PWM_freq_now;
 
-    if(bldc_run.duty > (bldc_run.TIM1_ARR_now - 1))
-    {
-        bldc_run.duty = bldc_run.TIM1_ARR_now - 1;
-    }
+    Virtual_Moto.dt = 1.0f / bldc_run.PWM_freq_now;
 }
 
 static void HallLess_Current_Process(uint8_t step)
@@ -560,42 +532,42 @@ static void HallLess_Current_Process(uint8_t step)
             case  0x2:
             {
                 //B+A-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
             
             case  0x6:
             {
                 //C+A-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
             
             case  0x4:
             {
                 //C+B-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
             
             case  0x5:
             {
                 //A+B-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
 
             case  0x1:
             {
                 //A+C-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
 
             case  0x3:
             {
                 //B+C-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
 
@@ -610,42 +582,42 @@ static void HallLess_Current_Process(uint8_t step)
             case  0x2:
             {
                 //B+C-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
 
             case  0x3:
             {
                 //A+C-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
 
             case  0x1:
             {
                 //A+B-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
 
             case  0x5:
             {
                 //C+B-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
 
             case  0x4:
             {
                 //C+A-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
 
             case  0x6:
             {
                 //B+A-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
             
@@ -666,42 +638,42 @@ static void Hall_Current_Process(uint8_t step)
             case  2:     
             {
                 //B+C-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
 
             case  6:
             {
                 //B+A-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
 
             case  4:   
             {
                 //C+A-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
 
             case  5:  
             {
                 //C+B-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
 
             case  1:    
             {
                 //A+B-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
 
             case  3:    
             {
                 //A+C-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
             
@@ -716,42 +688,42 @@ static void Hall_Current_Process(uint8_t step)
             case  2:
             {
                 //C+B-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
 
             case  3:   
             {
                 //C+A-
-                bldc_run.I_bus_ma = phase_current_f[2];
+                bldc_run.I_bus_ma = phase_current_A_f[2];
             }
             break;
 
             case  1:  
             {
                 //B+A-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
 
             case  5:    
             {
                 //B+C-
-                bldc_run.I_bus_ma = phase_current_f[1];
+                bldc_run.I_bus_ma = phase_current_A_f[1];
             }
             break;
 
             case  4:    
             {
                 //A+C-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
 
             case  6:     
             {
                 //A+B-
-                bldc_run.I_bus_ma = phase_current_f[0];
+                bldc_run.I_bus_ma = phase_current_A_f[0];
             }
             break;
             
@@ -763,7 +735,7 @@ static void Hall_Current_Process(uint8_t step)
     FirstOrder_LPF_Cacl(bldc_run.I_bus_ma,bldc_run.I_bus_ma_f,Filter_Rate.bus_current_filter_rate);
 }
 
-#ifdef VIRTUAL_MID_HALF_PHASE
+#ifdef VIRTUAL_MID_CAL_BY_HALF_PHASE
 static void HallLess_Virtual_Mid_Cal(uint8_t step)
 {
     if(Motor_Config.dir == CCW)
@@ -773,42 +745,42 @@ static void HallLess_Virtual_Mid_Cal(uint8_t step)
             case  0x2:
             {
                 //B+A-
-                bldc_run.virtual_mid = phase_voltage_f[1] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[1] / 2;
             }
             break;
             
             case  0x6:
             {
                 //C+A-
-                bldc_run.virtual_mid = phase_voltage_f[2] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[2] / 2;
             }
             break;
             
             case  0x4:
             {
                 //C+B-
-                bldc_run.virtual_mid = phase_voltage_f[2] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[2] / 2;
             }
             break;
 
             case  0x5:
             {
                 //A+B-
-                bldc_run.virtual_mid = phase_voltage_f[0] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[0] / 2;
             }
             break;
             
             case  0x1:
             {
                 //A+C-
-                bldc_run.virtual_mid = phase_voltage_f[0] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[0] / 2;
             }
             break;
             
             case  0x3:
             {
                 //B+C-
-                bldc_run.virtual_mid = phase_voltage_f[1] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[1] / 2;
             }
             break;
             
@@ -825,42 +797,42 @@ static void HallLess_Virtual_Mid_Cal(uint8_t step)
             case  0x2:
             {
                 //B+C-
-                bldc_run.virtual_mid = phase_voltage_f[1] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[1] / 2;
             }
             break;
 
             case  0x3:
             {
                 //A+C-
-                bldc_run.virtual_mid = phase_voltage_f[0] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[0] / 2;
             }
             break;
             
             case  0x1:
             {
                 //A+B-
-                bldc_run.virtual_mid = phase_voltage_f[0] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[0] / 2;
             }
             break;
 
             case  0x5:
             {
                 //C+B-
-                bldc_run.virtual_mid = phase_voltage_f[2] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[2] / 2;
             }
             break;
 
             case  0x4:
             {
                 //C+A-
-                bldc_run.virtual_mid = phase_voltage_f[2] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[2] / 2;
             }
             break;
 
             case  0x6:
             {
                 //B+A-
-                bldc_run.virtual_mid = phase_voltage_f[1] / 2;
+                bldc_run.virtual_mid = phase_voltage_V_f[1] / 2;
             }
             break;
 
@@ -883,87 +855,98 @@ void BLDC_Process(void)
             normally the BEFM is sine wave just like sin(x) sin(x + 2pi/3) sin(x - 2pi/3),Their average is 0.
             But the BEFM is in the 0 to Vbus range,so their average is 0.5 * Vbus.
         */
-        #if VIRTUAL_MID_3PHASE_AVERAGE
-        bldc_run.virtual_mid = (phase_voltage_f[0] + phase_voltage_f[1] + phase_voltage_f[2]) / 3;
-        FirstOrder_LPF_Cacl(bldc_run.virtual_mid,bldc_run.virtual_mid_f,bldc_ctrl.virtual_mid_filter_rate);
+        #if VIRTUAL_MID_CAL_BY_3PHASE_AVERAGE
+        bldc_run.virtual_mid = (phase_voltage_V_f[0] + phase_voltage_V_f[1] + phase_voltage_V_f[2]) / 3;
         #endif
         
-        #if VIRTUAL_MID_HALF_MAX_PHASE
-        bldc_run.virtual_mid = Virtual_Moto.V_bus_mv_f / 2;
+        #if VIRTUAL_MID_CAL_BY_BUS_DUTY
+        bldc_run.virtual_mid = Virtual_Moto.V_bus_v_f * bldc_ctrl.output / 2;
         #endif
 
-        if(bldc_run.run_state > BLDC_StartUp)
+        #if VIRTUAL_MID_CAL_BY_HALF_PHASE
+        switch(TIM1->CCER & 0x555)
         {
-            if(bldc_run.eletrical_rpm_abs > 20000 && bldc_run.befm_filter_len != 1)
-            {
-                Update_Filter_Value_Fast(1);
-            }
-            else if(bldc_run.eletrical_rpm_abs > 10000 && bldc_run.befm_filter_len != 2)
-            {
-                Update_Filter_Value_Fast(2);
-            }
-            else if(bldc_run.eletrical_rpm_abs > 5000 && bldc_run.befm_filter_len != 4)
-            {
-                Update_Filter_Value_Fast(4);
-            }
-            else if(bldc_run.befm_filter_len != 8)
-            {
-                Update_Filter_Value_Fast(8);
-            }
+            case 0x055:
+                bldc_run.virtual_mid = (phase_voltage_V_f[0] + phase_voltage_V_f[1]) / 2;
+                break;
+
+            case 0x505:
+                bldc_run.virtual_mid = (phase_voltage_V_f[0] + phase_voltage_V_f[2]) / 2;
+                break;
+            
+            case 0x550:
+                bldc_run.virtual_mid = (phase_voltage_V_f[1] + phase_voltage_V_f[2]) / 2;
+                break;
+            
+            default:
+                bldc_run.virtual_mid = (phase_voltage_V_f[0] + phase_voltage_V_f[1] + phase_voltage_V_f[2]) / 3;
+                break;
         }
+        #endif
 
-        bldc_run.befm_queue[0] = bldc_run.befm_queue[0] << 1;
-        bldc_run.befm_queue[1] = bldc_run.befm_queue[1] << 1;
-        bldc_run.befm_queue[2] = bldc_run.befm_queue[2] << 1;
+        FirstOrder_LPF_Cacl(bldc_run.virtual_mid,bldc_run.virtual_mid_f,bldc_ctrl.virtual_mid_filter_rate);
 
-        // if((bldc_run.run_state == BLDC_Stop || bldc_run.run_state >= BLDC_Brake) && bldc_run.virtual_mid_f < Virtual_Moto.V_bus_mv_f * 0.1f)
         if(bldc_run.run_state == BLDC_Stop && bldc_run.virtual_mid_f < 100)
         {
             bldc_run.phase_cnt = 0;
             bldc_run.phase_cnt_last = 0;
             bldc_run.phase_cnt_f = 0;
+            bldc_run.period_cnt = 0;
+            bldc_run.period_cnt_last = 0;
+            bldc_run.period_cnt_f = 0;
             bldc_run.eletrical_rpm = 0;
+            bldc_run.eletrical_rpm_abs = 0;
             bldc_run.machine_rpm = 0;
+            bldc_run.machine_rpm_abs = 0;
 
             bldc_run.befm_queue[0] = 0; 
             bldc_run.befm_queue[1] = 0;
             bldc_run.befm_queue[2] = 0;
-        }
-        else
-        {
-            bldc_run.befm_queue[0] |= phase_voltage_f[0] > bldc_run.virtual_mid_f; 
-            bldc_run.befm_queue[1] |= phase_voltage_f[1] > bldc_run.virtual_mid_f;
-            bldc_run.befm_queue[2] |= phase_voltage_f[2] > bldc_run.virtual_mid_f;
-        }
 
-        bldc_run.befm_filter_res[0] = bldc_run.befm_queue[0] & bldc_run.befm_filter_value;
-        if(bldc_run.befm_filter_res[0] == bldc_run.befm_filter_value)
-        {
-            bldc_run.befm_queue_f[0] = 1;
-        }
-        else if(bldc_run.befm_filter_res[0] == 0x00)
-        {
-            bldc_run.befm_queue_f[0] = 0;
-        }
-
-        bldc_run.befm_filter_res[1] = bldc_run.befm_queue[1] & bldc_run.befm_filter_value;
-        if(bldc_run.befm_filter_res[1] == bldc_run.befm_filter_value)
-        {
-            bldc_run.befm_queue_f[1] = 1;
-        }
-        else if(bldc_run.befm_filter_res[1] == 0x00)
-        {
+            bldc_run.befm_queue_f[0] = 0; 
             bldc_run.befm_queue_f[1] = 0;
-        }
-
-        bldc_run.befm_filter_res[2] = bldc_run.befm_queue[2] & bldc_run.befm_filter_value;
-        if(bldc_run.befm_filter_res[2] == bldc_run.befm_filter_value)
-        {
-            bldc_run.befm_queue_f[2] = 1;
-        }
-        else if(bldc_run.befm_filter_res[2] == 0x00)
-        {
             bldc_run.befm_queue_f[2] = 0;
+        }
+        // else if(++bldc_run.befm_detect_delay_cnt > bldc_run.befm_detect_delay_cnt_ref || bldc_run.run_state == BLDC_StartUp)
+        else if((bldc_run.run_state == BLDC_Run && ++bldc_run.befm_detect_delay_cnt > bldc_run.befm_detect_delay_cnt_ref) || bldc_run.run_state != BLDC_Run)
+        {
+            bldc_run.befm_queue[0] = bldc_run.befm_queue[0] << 1;
+            bldc_run.befm_queue[1] = bldc_run.befm_queue[1] << 1;
+            bldc_run.befm_queue[2] = bldc_run.befm_queue[2] << 1;
+            
+            bldc_run.befm_queue[0] |= phase_voltage_V_f[0] > bldc_run.virtual_mid_f; 
+            bldc_run.befm_queue[1] |= phase_voltage_V_f[1] > bldc_run.virtual_mid_f;
+            bldc_run.befm_queue[2] |= phase_voltage_V_f[2] > bldc_run.virtual_mid_f;
+
+            bldc_run.befm_filter_res[0] = bldc_run.befm_queue[0] & bldc_run.befm_filter_value;
+            if(bldc_run.befm_filter_res[0] == bldc_run.befm_filter_value)
+            {
+                bldc_run.befm_queue_f[0] = 1;
+            }
+            else if(bldc_run.befm_filter_res[0] == 0x00)
+            {
+                bldc_run.befm_queue_f[0] = 0;
+            }
+
+            bldc_run.befm_filter_res[1] = bldc_run.befm_queue[1] & bldc_run.befm_filter_value;
+            if(bldc_run.befm_filter_res[1] == bldc_run.befm_filter_value)
+            {
+                bldc_run.befm_queue_f[1] = 1;
+            }
+            else if(bldc_run.befm_filter_res[1] == 0x00)
+            {
+                bldc_run.befm_queue_f[1] = 0;
+            }
+
+            bldc_run.befm_filter_res[2] = bldc_run.befm_queue[2] & bldc_run.befm_filter_value;
+            if(bldc_run.befm_filter_res[2] == bldc_run.befm_filter_value)
+            {
+                bldc_run.befm_queue_f[2] = 1;
+            }
+            else if(bldc_run.befm_filter_res[2] == 0x00)
+            {
+                bldc_run.befm_queue_f[2] = 0;
+            }
         }
 
         bldc_run.befm_index = bldc_run.befm_queue_f[0] + (bldc_run.befm_queue_f[1] << 1) + (bldc_run.befm_queue_f[2] << 2);
@@ -976,7 +959,7 @@ void BLDC_Process(void)
             bldc_run.phase_cnt_last = bldc_run.phase_cnt;
             bldc_run.phase_cnt = 0;
             FirstOrder_LPF_Cacl(bldc_run.phase_cnt_last,bldc_run.phase_cnt_f,Filter_Rate.RPM_filter_rate);
-
+            
             if(bldc_ctrl.delay_angle)
             {
                 //bldc_run.delay_angle_cnt_ref = bldc_run.phase_cnt_f * 6 * bldc_ctrl.delay_angle / 360;
@@ -987,12 +970,22 @@ void BLDC_Process(void)
                 bldc_run.delay_angle_cnt_ref = 0;
             }
 
-            // //bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 60 / (bldc_run.phase_cnt_f * 6) * bldc_run.dir;
-            // bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 10 / bldc_run.phase_cnt_f * bldc_run.dir;
-            // bldc_run.eletrical_rpm_abs = abs(bldc_run.eletrical_rpm);
-            // bldc_run.machine_rpm = bldc_run.eletrical_rpm / bldc_ctrl.pole_pairs;
-            // bldc_run.machine_rpm_abs = bldc_run.eletrical_rpm_abs / bldc_ctrl.pole_pairs;
-
+            // if(bldc_run.phase_cnt_f)
+            // {
+            //     //bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 60 / (bldc_run.phase_cnt_f * 6) * bldc_run.dir;
+            //     bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 10 / bldc_run.phase_cnt_f * bldc_run.dir;
+            //     bldc_run.eletrical_rpm_abs = abs(bldc_run.eletrical_rpm);
+            //     bldc_run.machine_rpm = bldc_run.eletrical_rpm / bldc_ctrl.pole_pairs;
+            //     bldc_run.machine_rpm_abs = bldc_run.eletrical_rpm_abs / bldc_ctrl.pole_pairs;
+            // }
+            // else
+            // {
+            //     bldc_run.eletrical_rpm = 0;
+            //     bldc_run.eletrical_rpm_abs = 0;
+            //     bldc_run.machine_rpm = 0;
+            //     bldc_run.machine_rpm_abs = 0;
+            // }
+            
             bldc_run.step_list[bldc_run.step_cnt] = step_index[bldc_run.befm_index];
             bldc_run.step_time_cnt[bldc_run.step_cnt] = bldc_run.phase_cnt_last;
             if(++bldc_run.step_cnt >= 6)
@@ -1000,12 +993,40 @@ void BLDC_Process(void)
                 bldc_run.step_cnt = 0;
 
                 // bldc_run.period_cnt += 6 * bldc_run.befm_filter_len;
-                bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 60 / bldc_run.period_cnt * bldc_run.dir;
-                bldc_run.eletrical_rpm_abs = abs(bldc_run.eletrical_rpm);
-                bldc_run.machine_rpm = bldc_run.eletrical_rpm / bldc_ctrl.pole_pairs;
-                bldc_run.machine_rpm_abs = bldc_run.eletrical_rpm_abs / bldc_ctrl.pole_pairs;
-
+                bldc_run.period_cnt_last = bldc_run.period_cnt;
                 bldc_run.period_cnt = 0;
+                FirstOrder_LPF_Cacl(bldc_run.period_cnt_last,bldc_run.period_cnt_f,Filter_Rate.RPM_filter_rate);
+                
+                // if(bldc_ctrl.delay_angle)
+                // {
+                //     bldc_run.delay_angle_cnt_ref = bldc_run.period_cnt_f * bldc_ctrl.delay_angle / 360;
+                // }
+                // else
+                // {
+                //     bldc_run.delay_angle_cnt_ref = 0;
+                // }
+
+                bldc_run.befm_filter_len = bldc_run.period_cnt_f * bldc_ctrl.befm_filter_angle / 360;
+                bldc_run.befm_filter_len = _constrain(bldc_run.befm_filter_len,0,31);
+                bldc_run.befm_filter_value = filter_value_list[bldc_run.befm_filter_len];
+
+                bldc_run.befm_detect_delay_cnt_ref = bldc_run.period_cnt_f * bldc_ctrl.befm_detect_delay_angle / 360;
+
+                if(bldc_run.period_cnt_f)
+                {
+                    bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 60 / bldc_run.period_cnt_f * bldc_run.dir;
+                    bldc_run.eletrical_rpm_abs = abs(bldc_run.eletrical_rpm);
+                    bldc_run.machine_rpm = bldc_run.eletrical_rpm / bldc_ctrl.pole_pairs;
+                    bldc_run.machine_rpm_abs = bldc_run.eletrical_rpm_abs / bldc_ctrl.pole_pairs;
+
+                }
+                else
+                {
+                    bldc_run.eletrical_rpm = 0;
+                    bldc_run.eletrical_rpm_abs = 0;
+                    bldc_run.machine_rpm = 0;
+                    bldc_run.machine_rpm_abs = 0;
+                }
             }
             
             bldc_run.step_time_sum = bldc_run.step_time_cnt[0] + bldc_run.step_time_cnt[1] + bldc_run.step_time_cnt[2] + bldc_run.step_time_cnt[3] + bldc_run.step_time_cnt[4] + bldc_run.step_time_cnt[5];
@@ -1061,13 +1082,18 @@ void BLDC_Process(void)
         }
 
         // Stall Protect
-        if (bldc_run.phase_cnt > bldc_run.PWM_freq_now * bldc_ctrl.stall_protect_ms / 1000)
+        if (bldc_run.phase_cnt > bldc_run.PWM_freq_now * bldc_ctrl.stall_protect_ms / 1000 && bldc_ctrl.stall_protect_ms)
         {
             bldc_run.phase_cnt = 0;
             bldc_run.phase_cnt_last = 0;
             bldc_run.phase_cnt_f = 0;
+            bldc_run.period_cnt = 0;
+            bldc_run.period_cnt_last = 0;
+            bldc_run.period_cnt_f = 0;
             bldc_run.eletrical_rpm = 0;
+            bldc_run.eletrical_rpm_abs = 0;
             bldc_run.machine_rpm = 0;
+            bldc_run.machine_rpm_abs = 0;
             if (bldc_run.run_state == BLDC_Run)
             {
                 Stop_BLDC_Motor();
@@ -1078,11 +1104,11 @@ void BLDC_Process(void)
     {
         if(bldc_run.eletrical_rpm > 10000 && Hall_Sensor.hall_filter_len > 1)
         {
-            Update_Filter_Value_Fast(1);
+            Update_Filter_Value_Fast(0);
         }
         else if(Hall_Sensor.hall_filter_len > 2)
         {
-            Update_Filter_Value_Fast(2);
+            Update_Filter_Value_Fast(1);
         }
 
         Hall_Sensor.hall_queue[0] = Hall_Sensor.hall_queue[0] << 1;
@@ -1160,9 +1186,8 @@ void BLDC_Process(void)
             switch(bldc_run.start_seq)
             {
                 case BLDC_Start_Order:
-                    bldc_ctrl.output = 0;
+                    bldc_ctrl.output = bldc_ctrl.start_force;
                     VVVF_Process();
-                    bldc_run.duty = bldc_run.TIM1_ARR_now * bldc_ctrl.start_force;
                     bldc_run.delay_Cnt = 0;
                     bldc_run.delay_Cnt_Ref = bldc_run.PWM_freq_now * bldc_ctrl.start_order_ms / 1000;
                     bldc_run.start_seq = BLDC_Start_Order_Delay;
@@ -1205,22 +1230,17 @@ void BLDC_Process(void)
                     /*
                     * period per step = ERPM / 60 * 6 
                     * bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now / (ERPM / 60 * 6)
-                    * ERPM = bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * (Virtual_Moto.V_bus_mv_f / 1000)
+                    * ERPM = bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * Virtual_Moto.V_bus_v_f
                     * bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10 / ERPM
-                    * bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10 / (bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * (Virtual_Moto.V_bus_mv_f / 1000))
-                    * bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10000 / (bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * Virtual_Moto.V_bus_mv_f)
+                    * bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10 / (bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * Virtual_Moto.V_bus_v_f)
                     */
-                    if(bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10 / (bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * Virtual_Moto.V_bus_mv_f / 1000))
+                    if(bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10 / (bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * Virtual_Moto.V_bus_v_f))
                     {
-                        bldc_run.duty += bldc_run.TIM1_ARR_now * bldc_ctrl.start_force_rate;
+                        bldc_ctrl.output += bldc_ctrl.start_force_rate;
+                        bldc_ctrl.output = _constrain(bldc_ctrl.output,bldc_ctrl.output_min,bldc_ctrl.start_force * 2);
+
                         bldc_run.delay_Cnt_Ref *= bldc_ctrl.start_time_rate;//exponential curve
                         // bldc_run.delay_Cnt_Ref -= bldc_run.PWM_freq_now * bldc_ctrl.start_first_step_ms / 1000 * (1 - bldc_ctrl.start_time_rate);
-
-                        // max output is bldc_ctrl.start_forc * 2
-                        // min output is 0.1
-                        uint16_t up_lim = _constrain(bldc_run.TIM1_ARR_now * bldc_ctrl.start_force * 2,0,0xFFFF);
-                        uint16_t down_lim = bldc_run.TIM1_ARR_now * 0.1f;
-                        bldc_run.duty = _constrain(bldc_run.duty,down_lim,up_lim);
                     }
                     else
                     {
@@ -1251,11 +1271,9 @@ void BLDC_Process(void)
             {
                 bldc_run.start_step_index = step_seq_cw[bldc_run.start_index];
             }
+            bldc_run.befm_detect_delay_cnt = 0;
             VVVF_Process();
             HallLess_MOS_Switch(bldc_run.start_step_index);
-            #if VIRTUAL_MID_HALF_PHASE
-            HallLess_Virtual_Mid_Cal(bldc_run.start_step_index);
-            #endif
         }
         break;
 
@@ -1268,11 +1286,9 @@ void BLDC_Process(void)
                     bldc_run.delay_angle_cnt = 0;
                     bldc_run.step_index_last = bldc_run.befm_index;
                     bldc_run.step_index = bldc_run.befm_index;
+                    bldc_run.befm_detect_delay_cnt = 0;
                     VVVF_Process();
                     HallLess_MOS_Switch(bldc_run.step_index);
-                    #if VIRTUAL_MID_HALF_PHASE
-                    HallLess_Virtual_Mid_Cal(bldc_run.step_index);
-                    #endif
                 }
                 HallLess_Current_Process(bldc_run.step_index);
             }
@@ -1317,13 +1333,13 @@ void BLDC_Process(void)
         break;
     }
 
-    debug_arr[0] = phase_voltage[0];
-    debug_arr[1] = phase_voltage[1];
-    debug_arr[2] = phase_voltage[2];
+    debug_arr[0] = phase_voltage_V[0];
+    debug_arr[1] = phase_voltage_V[1];
+    debug_arr[2] = phase_voltage_V[2];
     debug_arr[3] = bldc_run.virtual_mid;
-    debug_arr[4] = phase_voltage_f[0];
-    debug_arr[5] = phase_voltage_f[1];
-    debug_arr[6] = phase_voltage_f[2];
+    debug_arr[4] = phase_voltage_V_f[0];
+    debug_arr[5] = phase_voltage_V_f[1];
+    debug_arr[6] = phase_voltage_V_f[2];
     debug_arr[7] = bldc_run.virtual_mid_f;
     debug_arr[8] = bldc_run.run_state;
     debug_arr[9] = bldc_run.start_seq;
@@ -1333,10 +1349,10 @@ void BLDC_Process(void)
     debug_arr[13] = bldc_run.phase_cnt_last;
     debug_arr[14] = bldc_run.phase_cnt_f;
     debug_arr[15] = bldc_run.step_time_mse;
-    debug_arr[16] = bldc_run.period_cnt;
-    debug_arr[17] = bldc_run.I_bus_ma;
-    debug_arr[18] = bldc_run.I_bus_ma_f;
-    debug_arr[19] = bldc_run.PWM_freq_now;
+    debug_arr[16] = bldc_run.period_cnt_last;
+    debug_arr[17] = bldc_run.period_cnt_f;
+    debug_arr[18] = bldc_run.I_bus_ma;
+    debug_arr[19] = bldc_run.I_bus_ma_f;
 
     CDC_Transmit_FS((uint8_t *)debug_arr,sizeof(debug_arr));
 }
@@ -1354,7 +1370,7 @@ void Start_BLDC_Motor(void)
                 bldc_run.dir = Motor_Config.dir;
                 bldc_run.run_state = BLDC_Run;
                 // bldc_ctrl.output = bldc_ctrl.output_min;
-                bldc_ctrl.output = (float)(abs(bldc_run.eletrical_rpm)) / bldc_ctrl.KV / bldc_ctrl.pole_pairs / Virtual_Moto.V_bus_mv_f / 1000;
+                bldc_ctrl.output = (float)(abs(bldc_run.eletrical_rpm)) / bldc_ctrl.KV / bldc_ctrl.pole_pairs / Virtual_Moto.V_bus_v_f;
             }
             else if(bldc_run.eletrical_rpm < 0)
             {   
@@ -1377,6 +1393,7 @@ void Start_BLDC_Motor(void)
                 bldc_run.phase_cnt = 0;
                 bldc_run.phase_cnt_last = 0;
                 bldc_run.phase_cnt_f = 0;
+                bldc_run.period_cnt = 0;
             }
         }
         else if(Motor_Config.dir == CW)
@@ -1398,7 +1415,7 @@ void Start_BLDC_Motor(void)
                 bldc_run.dir = Motor_Config.dir;
                 bldc_run.run_state = BLDC_Run;
                 // bldc_ctrl.output = bldc_ctrl.output_min;
-                bldc_ctrl.output = (float)(abs(bldc_run.eletrical_rpm)) / bldc_ctrl.KV / bldc_ctrl.pole_pairs / Virtual_Moto.V_bus_mv_f / 1000;
+                bldc_ctrl.output = (float)(abs(bldc_run.eletrical_rpm)) / bldc_ctrl.KV / bldc_ctrl.pole_pairs / Virtual_Moto.V_bus_v_f;
             }
             else
             #endif
@@ -1410,6 +1427,7 @@ void Start_BLDC_Motor(void)
                 bldc_run.phase_cnt = 0;
                 bldc_run.phase_cnt_last = 0;
                 bldc_run.phase_cnt_f = 0;
+                bldc_run.period_cnt = 0;
             }
         }
     }
@@ -1429,7 +1447,7 @@ void Stop_BLDC_Motor(void)
 
 void Init_BLDC_Motor(void)
 {
-    Update_Filter_Value_Fast(4);
+    Update_Filter_Value_Fast(7);
     bldc_run.PWM_freq_now = bldc_ctrl.PWM_freq_min;
     bldc_run.TIM1_ARR_now = PWM_TIM_BASE_FREQ / 2 / bldc_run.PWM_freq_now;
     Virtual_Moto.dt = 1.0f / bldc_run.PWM_freq_now;
