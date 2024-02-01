@@ -168,9 +168,9 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     // electrical angle in radians
     // atan2(double y,double x)  return value :-PI~PI but we need 0~2PI
 
-    /* 按道理来说此时估算角度应该有90°的相位滞后,实际上并没有. But why? */
+    /* In theory, there should be a 90° phase lag in the estimated Angle at this time, but there is not, why? */
     /*
-        这里认为Zalpha Zbeta 既是 BEMF 在ab axis分量
+        Zalpha Zbeta is considered to be both the ab axis component of BEMF
 
         Zalpha  =   -ωe*ψf*sinθe
         Zbeta   =   ωe*ψf*cosθe
@@ -181,27 +181,23 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
         EalphaFinal = -ωe*ψf*sin(θe + pi/2) * SQ(sqrt(2)/2) = -ωe*ψf*sin(θe + pi/2) / 2
         EbetaFinal  = ωe*ψf*cos(θe + pi/2) * SQ(sqrt(2)/2)  = ωe*ψf*cos(θe + pi/2) / 2
 
-        
+        After the first low-pass filtering, the Ealpha Ebeta lag Zalpha Zbeta 45° amplitude decays to sqrt(2)/2 times
+        After the second low-pass filtering, the EalphaFinal EbetaFinal lag Ealpha Ebeta 45° amplitude decays to sqrt(2)/2 times
+        So EalphaFinal EbetaFinal lags Zalpha Zbeta by 90° and the amplitude decays by 1/2 times
+        And because Zbeta lags Zalpha by 90°, EbetaFinal lags EalphaFinal by 90°
+        So EalphaFinal is in phase with Zbeta and EbetaFinal is in phase with Zalpha
 
-        经过第一次低通滤波后 Ealpha Ebeta 滞后 Zalpha Zbeta 45° 幅值衰减为 sqrt(2)/2 倍
-        经过第二次低通滤波后 EalphaFinal EbetaFinal 滞后 Ealpha Ebeta 45° 幅值衰减为 sqrt(2)/2 倍
-        所以 EalphaFinal EbetaFinal 滞后 Zalpha Zbeta 90° 幅值衰减为 1/2 倍
-        又因为 Zbeta 滞后 Zalpha 90° , EbetaFinal 滞后 EalphaFinal 90°
-        所以 EalphaFinal 与 Zbeta 相位相同 EbetaFinal 与 Zalpha 反相
-
-        因为 atan(Zbeta,Zalpha) 即 atan(BEMFbeta,BEMFalpha) 超前 θe 90° 正好与两次低通滤波造成的 90° 相位滞后抵消
-        所以 atan(Ebeta,Ealpha) 与 θe 相位相同 不再需要补偿滞后的90°
-        所以 ThetaOffset = 0 即可
+        Because atan(Zbeta,Zalpha) is atan(BEMFbeta,BEMFalpha) 90° ahead of the 90° phase lag caused by two low-pass filters
+        So atan(Ebeta,Ealpha) is in the same phase as θe and no longer needs to compensate for the 90° lag
+        So ThetaOffset = 0
     */
     s->Theta = Normalize_Angle(atan2f(s->EbetaFinal,s->EalphaFinal) + s->ThetaOffset);
     /*
-        可用此方法估算转速.
-        实际使用时确实可根据转速变化,但单位是什么?
-        sqrtf((SQ(s->EalphaFinal) + SQ(s->EbetaFinal)) / SQ(FLUX_Wb));
+        The speed can be estimated by this method.
+        The actual use can indeed change according to the speed, but what is the unit?
+        sqrtf((SQ(s->EalphaFinal) + SQ(s->EbetaFinal)) / SQ(FLUXWb));
     */
 #if !SMO_USE_PLL_SPEED
-    // 电气转速估算 执行频率为 FOC_SC_LOOP_FREQ
-    // 输出结果为 SPEEDLOOPTIME 内转过的电角度值（弧度制）
     s->AccumThetaCnt++;
     if (s->AccumThetaCnt == FOC_SPEED_LOOP_DIV) // speed loop div
     {
@@ -221,11 +217,9 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
         s->AccumTheta = 0;
     }
 
-    // 电气转速滤波
     s->OmegaFltred = s->OmegaFltred + s->SpeedFilter * (s->Omega - s->OmegaFltred);
     s->erps = s->OmegaFltred * FOC_CC_LOOP_FREQ / FOC_SPEED_LOOP_DIV / _2PI;
 
-    // 反电势滤波系数更新 截止频率等于电频率 此时幅值衰减为0.70710678倍 相位滞后45°
     // filter coef = 2*pi*Erps/fpwm
     // Omega:rads/SPEEDLOOPTIME
     // Erps = s->OmegaFltred * FOC_SC_LOOP_FREQ / _2PI

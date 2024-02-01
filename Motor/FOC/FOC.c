@@ -359,7 +359,6 @@ void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector
     *CMP3 = Tcmp3;
 }
 
-// from Simplefoc Project
 void SVPWM_DQ(float Ud_rate, float Uq_rate, float angle, uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3)
 {
     float angle_out;
@@ -386,11 +385,12 @@ void SVPWM_DQ(float Ud_rate, float Uq_rate, float angle, uint8_t *sector, uint16
     ct = cosf(angle_offset);
 
     /*
-    t0~t7为三相全桥对应的8个矢量的作用时间
-    T1为当前扇区的1号有效矢量的作用时间
-    T2为当前扇区的2号有效矢量的作用时间
-    T1、T2对应不同扇区t1~t6的作用时间
-    T0为当前扇区的0矢量作用时间之和，又因为t0与t7矢量作用时长相等，所以为方便计算将T0除二即t0矢量的作用时长用作占空比计算
+    t0~t7 is the action time of the 8 vectors corresponding to the three-phase full bridge
+    T1 is the operation time of the No. 1 effective vector of the current sector
+    T2 is the operation time of the No. 2 effective vector of the current sector
+    T1 and T2 correspond to the operation time of different sectors t1 to t6
+    T0 is the sum of the action time of the 0 vector in the current sector, and because the action time of t0 and t7 vector is equal, 
+    T0 divided by two, that is, the action time of t0 vector, is used as the duty cycle calculation for convenience
     */
     float T1 = Uout * (ct - _1_SQRT3 * st);
     float T2 = _2_SQRT3 * Uout * st;

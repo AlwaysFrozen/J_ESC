@@ -172,10 +172,6 @@ void HALL_Angle_Speed_Cali(void)
     if (Hall_Sensor.hall_index_last == Hall_Sensor.hall_index)
     {
         Hall_Sensor.hall_sector_cnt++;
-        /* 使用最低转速限制 效果不好 减速阶段响应慢 */
-        // if (Hall_Sensor.hall_sector_cnt > foc_run.PWM_freq_now / (1000 / (1000 / (foc_ctrl.erpm_min * 6 / 60))))
-        // if (Hall_Sensor.hall_sector_cnt > foc_run.PWM_freq_now * 10 / foc_ctrl.erpm_min)
-        /* 使用上一次计数值 减速幅值超过一定百分比则重新计算 */
         if (Hall_Sensor.hall_sector_cnt > Hall_Sensor.hall_sector_cnt_last * 1.05f)
         {
             Hall_Sensor.e_speed = _sign(Hall_Sensor.e_speed) * _PI_3 / (float)Hall_Sensor.hall_sector_cnt; // rads/cycle
@@ -184,7 +180,7 @@ void HALL_Angle_Speed_Cali(void)
             temp0 = hall_seq_calibration_120[Hall_Sensor.hall_index - 1] - 1;
             /*
                 (11*PI/6 + 1*PI/6) / 2 == (5*PI/6 + 7*PI/6) / 2
-                当 temp0 == 1 时转子跨越0°电角度,导致估算角度出现180°误差,从而引起电机抖动
+                When temp0 == 1, the rotor crosses the 0° electrical Angle, resulting in a 180° error in the estimated Angle, resulting in motor jitter
             */
             if (temp0 == 1)
             {
@@ -407,21 +403,21 @@ void SensorLess_Angle_Speed_Cali(void)
             #endif
             /* rpp -> rads per period */
             #if USE_S_CURVE_ACCELERATE
-            /*
-                S型加速曲线
-                y = A + B / (1 + e^(-ax + b))
-                A 无用设为0
-                B 决定曲线最大值
-                a 决定曲线上升时间 上升时间大致 = 10 / a
-                b 固定为5
-            */
+                /*
+                    S-shaped acceleration curve
+                    y = A + B / (1 + e^(-ax + b))
+                    A set to 0
+                    B Determine maximum
+                    a Determine the curve rise time Rise time ,roughly = 10 / a
+                    b set to 5
+                */
             //target rads per PWM period
             float start_target_rpp = foc_ctrl.startup_erpm * _2PI / 60 / foc_run.PWM_freq_now;
             float a = 10.0f / (foc_ctrl.startup_acc_ms * foc_run.PWM_freq_now / 1000);
             foc_run.start_rpp_now = start_target_rpp * 1.1f / (1 + expf(-a * foc_run.start_cnt + 5));
             #else
             /*
-                梯形加速曲线
+                    Trapezoidal acceleration curve
                 y = ax
             */
             //target rads per PWM period
