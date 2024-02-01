@@ -831,7 +831,7 @@ static void MX_TIM1_Init(void)
     /* USER CODE END TIM1_Init 0 */
 
     TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+    TIM_SlaveConfigTypeDef sSlaveConfig = {0};
     TIM_MasterConfigTypeDef sMasterConfig = {0};
     TIM_OC_InitTypeDef sConfigOC = {0};
     TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -1067,7 +1067,7 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
     MX_USB_DEVICE_Init();
-
+    
     #ifndef PWN_ADC_DEBUG
     SensorTaskHandle = osThreadNew(SensorTask, NULL, &SensorTask_attributes);
     ScheduleTaskHandle = osThreadNew(ScheduleTask, NULL, &ScheduleTask_attributes);
@@ -1146,6 +1146,7 @@ void ScheduleTask(void *argument)
                 Start_Motor();
             }
         }
+
         osDelay(10);
     }
 }

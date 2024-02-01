@@ -313,7 +313,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>1</Optim>
+            <Optim>4</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F405xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;C:\Program Files (x86)\SEGGER\JLink\Samples\RTT\SEGGER_RTT_V686a\RTT</IncludePath>
+              <IncludePath>../Core/Inc;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../Sensor;../Math;../Motor;../Motor/BLDC;../Motor/FOC;../Motor/Inverter;../Motor/VIS</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -417,76 +417,6 @@
               <FileName>stm32f4xx_hal_timebase_tim.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32f4xx_hal_timebase_tim.c</FilePath>
-            </File>
-            <File>
-              <FileName>AS5048a.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\AS5048a.c</FilePath>
-            </File>
-            <File>
-              <FileName>BLDC_Motor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\BLDC_Motor.c</FilePath>
-            </File>
-            <File>
-              <FileName>FluxLinkageObserver.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\FluxLinkageObserver.c</FilePath>
-            </File>
-            <File>
-              <FileName>FOC.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\FOC.c</FilePath>
-            </File>
-            <File>
-              <FileName>FOC_Motor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\FOC_Motor.c</FilePath>
-            </File>
-            <File>
-              <FileName>Inverter.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\Inverter.c</FilePath>
-            </File>
-            <File>
-              <FileName>Motor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\Motor.c</FilePath>
-            </File>
-            <File>
-              <FileName>My_Math.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\My_Math.c</FilePath>
-            </File>
-            <File>
-              <FileName>PID.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\PID.c</FilePath>
-            </File>
-            <File>
-              <FileName>SMO.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\SMO.c</FilePath>
-            </File>
-            <File>
-              <FileName>HALL.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\HALL.c</FilePath>
-            </File>
-            <File>
-              <FileName>VoltageCurrentSensor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\VoltageCurrentSensor.c</FilePath>
-            </File>
-            <File>
-              <FileName>Encoder.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\Encoder.c</FilePath>
-            </File>
-            <File>
-              <FileName>Sensor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\Sensor.c</FilePath>
             </File>
             <File>
               <FileName>DataTransmit.c</FileName>
@@ -737,6 +667,111 @@
               <FileName>usbd_cdc.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Math</GroupName>
+          <Files>
+            <File>
+              <FileName>My_IQMath.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\My_IQMath.c</FilePath>
+            </File>
+            <File>
+              <FileName>My_Math.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\My_Math.c</FilePath>
+            </File>
+            <File>
+              <FileName>PID.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\PID.c</FilePath>
+            </File>
+            <File>
+              <FileName>PLL.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\PLL.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor</GroupName>
+          <Files>
+            <File>
+              <FileName>DRV8301.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\DRV8301.c</FilePath>
+            </File>
+            <File>
+              <FileName>Motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\Motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>VIS.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\VIS\VIS.c</FilePath>
+            </File>
+            <File>
+              <FileName>Inverter.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\Inverter\Inverter.c</FilePath>
+            </File>
+            <File>
+              <FileName>FluxLinkageObserver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\FOC\FluxLinkageObserver.c</FilePath>
+            </File>
+            <File>
+              <FileName>FOC.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\FOC\FOC.c</FilePath>
+            </File>
+            <File>
+              <FileName>FOC_Motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\FOC\FOC_Motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>SMO.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\FOC\SMO.c</FilePath>
+            </File>
+            <File>
+              <FileName>BLDC_Motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\BLDC\BLDC_Motor.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Sensor</GroupName>
+          <Files>
+            <File>
+              <FileName>AS5048a.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Sensor\AS5048a.c</FilePath>
+            </File>
+            <File>
+              <FileName>Encoder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Sensor\Encoder.c</FilePath>
+            </File>
+            <File>
+              <FileName>HALL.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Sensor\HALL.c</FilePath>
+            </File>
+            <File>
+              <FileName>Sensor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Sensor\Sensor.c</FilePath>
+            </File>
+            <File>
+              <FileName>VoltageCurrentSensor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Sensor\VoltageCurrentSensor.c</FilePath>
             </File>
           </Files>
         </Group>
