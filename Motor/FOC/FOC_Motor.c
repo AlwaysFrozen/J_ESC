@@ -716,7 +716,7 @@ void FOC_Process(void)
             saturate_vector_2d(&foc_para.Ua_rate, &foc_para.Ub_rate, foc_ctrl.modulation_ratio);
             saturate_vector_2d(&foc_para.Ud_rate, &foc_para.Uq_rate, foc_ctrl.modulation_ratio);
 
-            #if 1
+            #if 0
             // // Id Iq filter
             // FirstOrder_LPF_Cacl(foc_para.Id, foc_para.Id_f, Filter_Rate.phase_current_filter_rate);
             // FirstOrder_LPF_Cacl(foc_para.Iq, foc_para.Iq_f, Filter_Rate.phase_current_filter_rate);
