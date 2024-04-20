@@ -85,23 +85,16 @@ void SMO_Init(SMO_t *s,float speed_fc,float dt)
 
 #if SMO_USE_PLL
     s->ThetaOffset = 0;
-    PLL_Init(&s->pll,0.0001,0.2,speed_fc,dt);
+    PLL_Init(&s->pll,0.01f,1,speed_fc,dt);
 #endif
 }
 
 void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
 {
-#if SMO_USE_MEASURE_VOL
     s->Valpha = foc_para->Ua;
     s->Vbeta = foc_para->Ub;
     s->Ialpha = foc_para->Ia;
     s->Ibeta = foc_para->Ib;
-#else
-    s->Valpha = foc_para->Ua_rate * Virtual_Moto.V_bus_v_f * _2_3;
-    s->Vbeta = foc_para->Ub_rate * Virtual_Moto.V_bus_v_f * _2_3;
-    s->Ialpha = foc_para->Ia;
-    s->Ibeta = foc_para->Ib;
-#endif
 
     // Sliding mode current observer
 #if IS_IPM
@@ -149,10 +142,18 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
 
 #if SMO_USE_PLL
     // see https://zhuanlan.zhihu.com/p/652503676
-    PLL_Run(&s->pll,-s->Zalpha,s->Zbeta);
-#if !SMO_USE_PLL_SPEED
-    s->pll.theta = Normalize_Angle(s->pll.theta + s->ThetaOffset);
-#endif
+    // PLL_Run(&s->pll,-s->Zalpha,s->Zbeta);
+    // PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Zalpha,SIGN(s->pll.hz) * s->Zbeta);
+
+    /* 
+        正反转时PLL结构不同,需加符号函数进行修正
+        但由于零速时观测转速震荡导致增加符号函数后速度和角度无法收敛
+    */
+    Normalize_PLL_Run(&s->pll,-s->Zalpha,s->Zbeta);
+    // Normalize_PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Zalpha,SIGN(s->pll.hz) * s->Zbeta);
+
+    s->E_ang = s->pll.theta;
+    s->E_rps = s->pll.hz_f;
 #endif
 
 #if SMO_USE_ARCTAN
@@ -197,7 +198,7 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
         The actual use can indeed change according to the speed, but what is the unit?
         sqrtf((SQ(s->EalphaFinal) + SQ(s->EbetaFinal)) / SQ(FLUXWb));
     */
-#if !SMO_USE_PLL_SPEED
+
     s->AccumThetaCnt++;
     if (s->AccumThetaCnt == FOC_SPEED_LOOP_DIV) // speed loop div
     {
@@ -226,11 +227,6 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
 
     // s->Kslf = _2PI * fabsf(s->OmegaFltred) * FOC_SC_LOOP_FREQ / _2PI  / FOC_CC_LOOP_FREQ;
     s->Kslf = fabsf(s->OmegaFltred) / FOC_SPEED_LOOP_DIV;
-#else
-    // use pll speed
-    s->erps = s->pll.speed_hz_f;
-    s->Kslf = _2PI * fabsf(s->pll.speed_hz_f) / FOC_CC_LOOP_FREQ;
-#endif
     if (s->Kslf < s->KslfMin)
     {
         s->Kslf = s->KslfMin;
@@ -239,14 +235,8 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     {
         s->Kslf = 1.0f;
     }
-#endif
-
-#if SMO_USE_ARCTAN 
     s->E_ang = s->Theta;
     s->E_rps = s->erps;
-#elif SMO_USE_PLL
-    s->E_ang = s->pll.theta;
-    s->E_rps = s->pll.speed_hz_f;
 #endif
 
     s->E_rpm = s->E_rps * 60;

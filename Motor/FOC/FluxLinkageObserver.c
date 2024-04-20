@@ -15,13 +15,13 @@ void FLO_Init(FLO_t *obs,float speed_fc,float dt)
 
     #ifdef MOTOR_2PP_SERVO
     obs->gain = 50000;
-    PLL_Init(&obs->pll,50,100,speed_fc,dt);
     #endif
 
     #ifdef MOTOR_14PP_BLDC
     obs->gain = 50000000;
-    PLL_Init(&obs->pll,100,100,speed_fc,dt);
     #endif
+
+    PLL_Init(&obs->pll,0.1f,0.1f,speed_fc,dt);
 }
 
 void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para)
@@ -43,8 +43,19 @@ void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para)
     obs->flux_a += (foc_para->Ua - obs->R_I_a + obs->flux_r_a * obs->flux_r_err * obs->gain) * obs->dt;
     obs->flux_b += (foc_para->Ub - obs->R_I_b + obs->flux_r_b * obs->flux_r_err * obs->gain) * obs->dt;
     // cal stator flux
+    #if IS_IPM
+    // https://zhuanlan.zhihu.com/p/259856568 for IPM
+    float l_delta = (Ld_H - Lq_H) / 2;
+    float l_diff = l_delta * cosf(obs->pll.theta * 2);
+    float l_a = obs->ls_H + l_diff;
+    float l_b = obs->ls_H - l_diff;
+    float l_ab = l_delta * sinf(obs->pll.theta * 2);
+    obs->flux_s_a = l_a * foc_para->Ia + l_ab * foc_para->Ib;
+    obs->flux_s_b = l_b * foc_para->Ib + l_ab * foc_para->Ia;
+    #else
     obs->flux_s_a = obs->ls_H * foc_para->Ia;
     obs->flux_s_b = obs->ls_H * foc_para->Ib;
+    #endif
     // cal rotor flux
     obs->flux_r_a = obs->flux_a - obs->flux_s_a;
     obs->flux_r_b = obs->flux_b - obs->flux_s_b;
@@ -55,7 +66,8 @@ void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para)
     // obs->Theta = Normalize_Angle(atan2f(obs->flux_r_b,obs->flux_r_a));
 
     // see https://zhuanlan.zhihu.com/p/652503676
-    PLL_Run(&obs->pll,obs->flux_r_b,obs->flux_r_a);
+    // PLL_Run(&obs->pll,obs->flux_r_b,obs->flux_r_a);
+    Normalize_PLL_Run(&obs->pll,obs->flux_r_b,obs->flux_r_a);
 
     // observer optput
     obs->E_ang = obs->pll.theta;

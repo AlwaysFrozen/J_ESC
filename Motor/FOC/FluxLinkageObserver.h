@@ -8,6 +8,7 @@
 #include "FOC_Motor.h"
 #include "PLL.h"
 
+#define IS_IPM                  0
 
 typedef struct _OBSERVER_Obj_
 {

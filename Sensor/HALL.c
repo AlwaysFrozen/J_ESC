@@ -42,22 +42,48 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
-    float ua = 0;
-    float ub = 0;
     float ud = 0;
     float uq = 0;
+    float ia = 0;
+    float ib = 0;
+    float id = 0;
+    float iq = 0;
+    uint8_t sector = 0;
+    int32_t cmp1;
+    int32_t cmp2;
+    int32_t cmp3;
 
     // enable output
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
 
-    // current set
-    while (foc_para.Id < current_limit)
+    // set current to 0
+    SVPWM_DQ(ud,uq,DEG_TO_RAD(0),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+    cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+    cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+    cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+    TIM1->CCR1 = cmp1;
+    TIM1->CCR2 = cmp2;
+    TIM1->CCR3 = cmp3;
+    while (id > 0.01f)
     {
-        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &foc_para.Ia, &foc_para.Ib);
-        Park_Transmission(foc_para.Ia, foc_para.Ib, &foc_para.Id, &foc_para.Iq, DEG_TO_RAD(0));
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(0));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(0));
+        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
+        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(0));
+        osDelay(1);
+    }
+
+    // current set
+    while (id < current_limit)
+    {
+        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
+        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(0));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(0),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
 
         ud += 0.001f;
         if (ud > FOC_MAX_MODULATION_RATIO)
@@ -89,8 +115,13 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 
     for (int16_t i = 0; i < 720; i++) // Rotate 720° CCW
     {
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(i));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(i));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(i),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -111,8 +142,13 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
     osDelay(100);
     for (int16_t i = 720 - 1; i >= 0; i--) // Rotate 720° CW
     {
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(i));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(i));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(i),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();

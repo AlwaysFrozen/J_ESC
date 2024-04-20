@@ -2,6 +2,7 @@
 #define __FOC_CONFIG_H__
 
 #include "Motor.h"
+#include "My_Math.h"
 
 /*
     Np = PolePairs
@@ -17,6 +18,8 @@
         = (Hz * 60 * 2) / (Np * VPP)
 
     FLUX(wb) = 30 / (sqrt(3) * pi * KV * Np)
+
+    Ke = We * FLUX(wb) = 1000 * 2 * pi * Np * FLUX(wb) / 60 = (1000 * Np * VPP) / (120 * sqrt(3) * Hz)
 */
 
 #define FOC_PWM_FREQ                                (20000UL)
@@ -40,10 +43,12 @@
 #define FEED_FORWARD_ENABLE                         1
 #define DT_COMPENSATION_ENABLE                      0
 #define MTPA_ENABLE                                 0
+#define CAL_BY_VOLTAGE                              1
+
 
 // sensorless startup config
 #define USE_S_CURVE_ACCELERATE                      1
-#define MAX_DIFF_ANGLE                              (6.28318530718f * 0.083333333f)     /* 360 * 0.083333333 = 30 */
+#define MAX_DIFF_ANGLE                              _PI_6     /* 360 * 0.083333333 = 30 */
 // sensorless observer
 #define FOC_SMO_ENABLE                              0
 #define FOC_FLO_ENABLE                              1
@@ -55,19 +60,19 @@
 #define FOC_DEBUG_SMO                               0
 #define FOC_DEBUG_FLO                               0
 
-#define FOC_DEBUG_SENSORLESS                        FOC_DEBUG_SMO || FOC_DEBUG_FLO
+#define FOC_DEBUG_SENSORLESS                        (FOC_DEBUG_SMO || FOC_DEBUG_FLO)
 
 
-#define MOTOR_2PP_SERVO
+// #define MOTOR_2PP_SERVO
 // #define MOTOR_11PP_SERVO
-// #define MOTOR_14PP_BLDC
+#define MOTOR_14PP_BLDC
 // #define MOTOR_1PP_BLDC_FAN
 // #define MOTOR_3PP_BLDC
 // #define MOTOR_7PP_BLDC
 
 #ifdef MOTOR_2PP_SERVO
     // Motor Config
-    #define Sensor_Type                                 (SENSOR_LESS)
+    // #define Sensor_Type                                 (SENSOR_LESS)
     // #define Sensor_Type                                 (SENSOR_LESS_HFI)
     // #define Sensor_Type                                 (SPI_ENCODER)
     // #define Sensor_Type                                 (HALL_120_SENSOR)
@@ -89,15 +94,15 @@
     #define StartUpErpm                                 (1000)
     #define MinErpm                                     (200)
     //ID_PID
-    #define ID_KP                                       (1.0f)
-    #define ID_KI                                       (100.0f)
+    #define ID_KP                                       (2.0f)
+    #define ID_KI                                       (50.0f)
     #define ID_KD                                       (0.0f)
     #define ID_KB                                       (ID_KI * 3)
     #define ID_LP                                       (FOC_MAX_MODULATION_RATIO)
     #define ID_LN                                       (-FOC_MAX_MODULATION_RATIO)
     //IQ_PID
-    #define IQ_KP                                       (1.0f)
-    #define IQ_KI                                       (500.0f)
+    #define IQ_KP                                       (2.0f)
+    #define IQ_KI                                       (50.0f)
     #define IQ_KD                                       (0.0f)
     #define IQ_KB                                       (IQ_KI * 3)
     #define IQ_LP                                       (FOC_MAX_MODULATION_RATIO)
@@ -180,7 +185,7 @@
     #define Lq_H                                        (0.0000610f / 2.0f)
     #define Ls_H                                        ((Ld_H + Lq_H) / 2.0f)
     #define Rs_R                                        (0.0855f / 2.0f)
-    #define FLUX_Wb                                     (0.0027522f)
+    #define FLUX_Wb                                     (0.00262537f)//(0.0027522f)
     //Control Config
     #define CURRENT_LOOP_ENABLE                         (1)
     #define SPEED_LOOP_ENABLE                           (0)

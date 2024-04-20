@@ -10,6 +10,7 @@
 #include "HALL.h"
 #include "Encoder.h"
 #include "AS5048a.h"
+#include "PLL.h"
 
 typedef enum
 {
@@ -48,6 +49,8 @@ typedef struct
     float Id_f;
     float Iq_f;
     /*  */
+    float Ud_ff;
+    float Uq_ff;
     float Ua_rate;
     float Ub_rate;
     float Ud_rate;
@@ -61,6 +64,10 @@ typedef struct
     float Is;
     float Is_f;
     /* PID reference */
+    float Ua_target;
+    float Ub_target;
+    float Ud_target;
+    float Uq_target;
     float Id_target;
     float Iq_target;
     float Speed_target;
@@ -168,17 +175,8 @@ typedef struct
 
     float HFI_Id_P;
     float HFI_Id_N;
-
-    float Kp;
-    float Ki;
-    float Integral;
-    float Ui;
-    float err;
-    float speed_hz;
-    float speed_hz_f;
+    
     float theta;
-
-    float HFI_e_angle;
 }HFI_RUN_t;
 
 extern FOC_Para_t foc_para;
@@ -190,7 +188,8 @@ extern PID_Position_t Speed_PID;
 extern HFI_CONTROL_t HFI_ctrl;
 extern HFI_RUN_t HFI_run;
 
-void SVPWM_Update(float Ua_rate,float Ub_rate,float Ud_rate,float Uq_rate,float angle);
+void SVPWM_Update(TIM_TypeDef * TIMX,FOC_RUN_t *run_parameters,FOC_Para_t *parameters);
+
 void FOC_Process(void);
 void Start_FOC_Motor(void);
 void Stop_FOC_Motor(void);

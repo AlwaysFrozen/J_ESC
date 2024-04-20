@@ -24,6 +24,19 @@ Sensor_Cali_Err_t Sensor_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
+    // TIM set
+    TIM1->CCER &= ~0x555;
+    // enable preload
+    TIM1->CR1 |= 0x80;
+    TIM1->CCMR1 |= 0x808;
+    TIM1->CCMR2 |= 0x08;
+    TIM1->ARR = PWM_TIM_BASE_FREQ / 2 / (20 * 1000);
+    #ifdef ADC_SAMPLE_HIGH_SIDE
+    TIM1->CCR4 = 1;
+    #else
+    TIM1->CCR4 = TIM1->ARR - 1;
+    #endif
+
     err |= Voltage_Current_Sensor_Calibration();
 
     #if !FOC_DEBUG_HALL
@@ -34,7 +47,7 @@ Sensor_Cali_Err_t Sensor_Calibration(float current_limit)
         err |= HALL_Calibration(current_limit);
     }
 
-    osDelay(1000);
+    osDelay(100);
 
     #if !FOC_DEBUG_ENCODER
     if(Motor_Config.moto_type == FOC && foc_ctrl.sensor_type >= IIC_ENCODER)

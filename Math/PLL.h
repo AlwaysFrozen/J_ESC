@@ -24,6 +24,6 @@ typedef struct
 
 void PLL_Init(PLL_t *pPLL,float Kp,float Ki,float fc,float dt);
 void PLL_Run(PLL_t *pPLL,float sin_value,float cos_value);
-
+void Normalize_PLL_Run(PLL_t *pPLL,float sin_value,float cos_value);
 
 #endif

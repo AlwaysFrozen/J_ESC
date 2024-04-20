@@ -14,6 +14,26 @@
 //0x3FFE    Magnitude
 //0x3FFF    Angle
 extern SPI_HandleTypeDef hspi1;
+
+void AS5048a_Clear_Err(void)
+{
+    uint16_t tx = AS5048_CLEAR,rx = 0;
+
+    // HAL_GPIO_WritePin(GPIOA,GPIO_PIN_4,GPIO_PIN_RESET);
+    // HAL_SPI_TransmitReceive(&hspi1,(uint8_t *)&tx,(uint8_t *)&rx,1,1);
+    // HAL_GPIO_WritePin(GPIOA,GPIO_PIN_4,GPIO_PIN_SET);
+
+    GPIOA->BSRR = (uint32_t)GPIO_PIN_4 << 16U;
+    // send
+    SPI1->DR = tx;
+    // receive
+    rx = SPI1->DR;
+    // wait until transmit end
+    while(SPI1->SR & 0x80);
+    GPIOA->BSRR = GPIO_PIN_4;
+
+}
+
 uint8_t AS5048a_Read_Raw(uint16_t *data)
 {
     uint8_t sta = 1;
@@ -38,7 +58,9 @@ uint8_t AS5048a_Read_Raw(uint16_t *data)
     // check err flag
     if(rx & EF_BIT)
     {
-        sta = 0;
+        // sta = 0;
+        AS5048a_Clear_Err();
+        AS5048a_Read_Raw(data);
     }
     // Parity check (EVEN)
     for(uint8_t i = 0;i < 16;i++)

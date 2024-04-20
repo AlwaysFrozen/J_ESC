@@ -33,10 +33,16 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
-    float ua = 0;
-    float ub = 0;
     float ud = 0;
     float uq = 0;
+    float ia = 0;
+    float ib = 0;
+    float id = 0;
+    float iq = 0;
+    uint8_t sector = 0;
+    int32_t cmp1;
+    int32_t cmp2;
+    int32_t cmp3;
     /* 
         align to the initial Angle
         Considering that the motor is affected by the cogging effect and the rotor stays at an Angle of 30 90 150 210 270 330 in its natural state, the initial alignment Angle should be selected among these values to reduce the error
@@ -55,13 +61,33 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
 
-    // stage 1
-    while (foc_para.Id < current_limit)
+    // set current to 0
+    SVPWM_DQ(ud,uq,DEG_TO_RAD(0),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+    cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+    cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+    cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+    TIM1->CCR1 = cmp1;
+    TIM1->CCR2 = cmp2;
+    TIM1->CCR3 = cmp3;
+    while (id > 0.01f)
     {
-        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &foc_para.Ia, &foc_para.Ib);
-        Park_Transmission(foc_para.Ia, foc_para.Ib, &foc_para.Id, &foc_para.Iq, DEG_TO_RAD(e_degree));
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
+        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
+        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(0));
+        osDelay(1);
+    }
+
+    // current set
+    while (id < current_limit)
+    {
+        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
+        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(e_degree));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
 
         ud += 0.001f;
         if (ud > FOC_MAX_MODULATION_RATIO)
@@ -95,8 +121,14 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 2
     for (int16_t i = 0; i < move_e_degree; i++)
     {
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree++));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(++e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
+
         osDelay(10);
     }
     osDelay(500);
@@ -120,8 +152,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 3
     for (int16_t i = move_e_degree; i > 0; i--)
     {
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree--));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(--e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
         osDelay(10);
     }
     osDelay(500);
@@ -145,8 +182,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 4
     for (int16_t i = move_e_degree; i > 0; i--)
     {
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree--));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(--e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
         osDelay(10);
     }
     osDelay(500);
@@ -170,8 +212,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     // stage 5
     for (int16_t i = 0; i < move_e_degree; i++)
     {
-        Inverse_Park_Transmission(ud, uq, &ua, &ub, DEG_TO_RAD(e_degree++));
-        SVPWM_Update(ua, ub, ud, uq, DEG_TO_RAD(e_degree));
+        SVPWM_DQ(ud,uq,DEG_TO_RAD(++e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
+        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
+        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
+        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
+        TIM1->CCR1 = cmp1;
+        TIM1->CCR2 = cmp2;
+        TIM1->CCR3 = cmp3;
         osDelay(10);
     }
     osDelay(500);

@@ -248,7 +248,7 @@ int main(void)
     
     /* Motor Init */
     motor_type_now = Motor_Config.moto_type;
-    Init_Motor();
+    // Init_Motor();
 
     /* USER CODE BEGIN 2 */
     #ifndef PWN_ADC_DEBUG
@@ -1093,6 +1093,7 @@ void SensorTask(void *argument)
             if(sensor_calibration_err == Sensor_Cali_Err_NONE)
             {
                 sensor_calibration_status = Sensor_Calibrated;
+                Init_Motor();
             }
             else
             {

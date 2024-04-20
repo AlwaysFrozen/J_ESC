@@ -15,6 +15,7 @@ void Inverse_Park_Transmission(float d,float q,float *alpha,float *beta,float th
 void SVPWM_AB(float v_alpha_rate,float v_beta_rate,uint8_t *sector,uint16_t period,int32_t *CMP1,int32_t *CMP2,int32_t *CMP3);
 void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3);
 void SVPWM_DQ(float Ud_rate,float Uq_rate,float angle,uint8_t *sector,uint16_t period,int32_t *CMP1,int32_t *CMP2,int32_t *CMP3);
+void SVPWM_DQ_Voltage(float Ud, float Uq, float Udc, float angle, uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3);
 
 void MTPA_Cal(FOC_Para_t * foc_para,float flux_wb,float Ld,float Lq);
 

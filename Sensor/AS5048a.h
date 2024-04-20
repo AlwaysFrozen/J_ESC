@@ -12,6 +12,7 @@
 
 #define EF_BIT              (1 << 14)
 
+void AS5048a_Clear_Err(void);
 uint8_t AS5048a_Read_Raw(uint16_t *data);
 void AS5048_Read_M_Ang(void);
 

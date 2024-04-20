@@ -9,11 +9,8 @@
 #include "FOC_Motor.h"
 #include "PLL.h"
 
-#define SMO_USE_ARCTAN          1
+#define SMO_USE_ARCTAN          0
 #define SMO_USE_PLL             1
-#define SMO_USE_PLL_SPEED       0
-
-#define SMO_USE_MEASURE_VOL     1
 
 #define IS_IPM                  0
 
