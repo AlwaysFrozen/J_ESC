@@ -172,7 +172,7 @@ void HALL_Angle_Speed_Cali(void)
     if (Hall_Sensor.hall_index_last == Hall_Sensor.hall_index)
     {
         Hall_Sensor.hall_sector_cnt++;
-        if (Hall_Sensor.hall_sector_cnt > Hall_Sensor.hall_sector_cnt_last * 1.05f)
+        if (Hall_Sensor.hall_sector_cnt > Hall_Sensor.hall_sector_cnt_last * 1.5f)
         {
             Hall_Sensor.e_speed = _sign(Hall_Sensor.e_speed) * _PI_3 / (float)Hall_Sensor.hall_sector_cnt; // rads/cycle
             // FirstOrder_LPF_Cacl(Hall_Sensor.e_speed, Hall_Sensor.e_speed_f, Filter_Rate.RPM_filter_rate);
@@ -544,9 +544,6 @@ void SensorLess_Angle_Speed_Cali(void)
                         HFI_run.HFI_Ia_delta = 0;
                         HFI_run.HFI_Ib_base = 0;
                         HFI_run.HFI_Ib_delta = 0;
-                        HFI_run.HFI_DIV_cnt = 0;
-                        HFI_run.HFI_DIV_cnt = 0;
-                        HFI_run.HFI_DIV_cnt = 0;
 
                         HFI_run.Integral = 0;
                         HFI_run.Ui = 0;
