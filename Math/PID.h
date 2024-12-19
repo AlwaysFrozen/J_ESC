@@ -14,47 +14,37 @@ typedef struct
     float Kd;
     float Kb;
 
-    float out_p;
-    float out_i;
-    float out_d;
+    float Proportional;
+    float Integral;
+    float Derivative;
+    
     float out;
     float out_temp;
         
-    float err;
-    float err_last;
-    float err_total;
+    float err_k0;
+    float err_k1;
+    float err_k2;
     
-    float limit_positive;
-    float limit_negative;
-}PID_Position_t;
+    float limit_max;
+    float limit_min;
 
-typedef struct
-{
-    float dt;
-    float Kp;
-    float Ki;
-    float Kd;
+    bool saturation;
+}PID_t;
 
-    float out_p;
-    float out_i;
-    float out_d;
-    float out;
 
-    float err_0;
-    float err_1;
-    float err_2;
-
-    float limit_positive;
-    float limit_negative;
-}PID_Delta_t;
-
-void Current_Loop_PID_Tune(PID_Position_t *pPID,float Wc,float L,float R);
-void PID_Position_Init(PID_Position_t *pPID,float dt,float Kp,float Ki,float Kd,float Kb,float limit_p,float limit_n);
-void PID_Position_Reset(PID_Position_t *pPID);
-float PID_Position_Run(PID_Position_t *pPID,float target,float feedback);
-float FeedForward_PID_Position_Run(PID_Position_t *pPID,float feedforward,float target,float feedback);
-void PID_Delta_Init(PID_Delta_t *pPID,float dt,float Kp,float Ki,float Kd,float limit_p,float limit_n);
-void PID_Delta_Reset(PID_Delta_t *pPID);
-float PID_Delta_Run(PID_Delta_t *pPID,float target,float feedback);
+void Current_Loop_Parallel_PID_Tune(PID_t *pPID,float Hz,float L,float R);
+void Current_Loop_Serial_PID_Tune(PID_t *pPID,float Hz,float L,float R);
+void PID_Init(PID_t *pPID,float dt,float Kp,float Ki,float Kd,float Kb,float limit_max,float limit_min);
+void PID_Reset(PID_t *pPID);
+void PID_Set_Limit(PID_t *pPID,float limit_max,float limit_min);
+void PID_Set_Abs_Limit(PID_t *pPID,float limit);
+float Parallel_PID_Position_Run(PID_t *pPID,float target,float feedback);
+float FeedForward_Parallel_PID_Position_Run(PID_t *pPID,float feedforward,float target,float feedback);
+float Serial_PID_Position_Run(PID_t *pPID,float target,float feedback);
+float FeedForward_Serial_PID_Position_Run(PID_t *pPID,float feedforward,float target,float feedback);
+float PID_Delta_Run(PID_t *pPID,float target,float feedback);
+float FeedForward_PID_Delta_Run(PID_t *pPID,float feedforward,float target,float feedback);
+float IP_Run(PID_t *pPID,float target,float feedback);
+float FeedForward_IP_Run(PID_t *pPID,float target,float feedback,float feedforward);
 
 #endif

@@ -43,14 +43,10 @@ typedef struct
 
 extern HALL_Sensor_t Hall_Sensor;
 
-extern uint8_t hall_seq_ideal_120[6];
-extern uint8_t hall_seq_ideal_60[6];
-extern uint8_t hall_seq_calibration_120[6];
-extern uint8_t hall_seq_calibration_60[8];
-extern float hall_deg_seq_ccw[6];
-extern float hall_deg_seq_cw[6];
 
-extern float hall_deg_calibrated[6];
+extern float hall_index_calibrated[8];
+extern float hall_deg_calibrated[8];
+extern float hall_rad_calibrated[8];
 
 void Hall_Sensor_Init(void);
 void Update_Hall_Filter_Value(uint8_t len);

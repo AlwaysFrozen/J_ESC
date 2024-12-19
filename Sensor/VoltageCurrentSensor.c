@@ -11,13 +11,13 @@ ADC_Cali_t adc_cali = {.ADC_Cali_Value[3] = 2047, .ADC_Cali_Value[4] = 2047, .AD
 
 uint16_t Vbus_ADC = 0;
 float adc_value[6] = {0};
-float phase_voltage_V[3] = {0};
-float phase_voltage_V_f[3] = {0};
-float phase_current_A[3] = {0};
-float phase_current_A_f[3] = {0};
-float *p_phase_voltage_V[3] = {&phase_voltage_V[0], &phase_voltage_V[1], &phase_voltage_V[2]};
-float *p_phase_current_A[3] = {&phase_current_A[0], &phase_current_A[1], &phase_current_A[2]};
 
+UVW_Axis_t phase_voltage_V;
+UVW_Axis_t phase_voltage_V_f;
+UVW_Axis_t phase_current_A;
+UVW_Axis_t phase_current_A_f;
+UVW_Axis_t *p_phase_voltage_V = &phase_voltage_V;
+UVW_Axis_t *p_phase_current_A = &phase_current_A;
 
 Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
 {

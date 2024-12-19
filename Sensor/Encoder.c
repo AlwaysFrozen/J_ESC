@@ -21,78 +21,65 @@ Encoder_Para_t AS5048_para =
 };
 
 /* 
-    Encoder alignment is divided into five stages
-    1. Set the D-axis current and align it to the initial Angle
-    2. Rotate counterclockwise
-    3. Rotate clockwise -> Return to the initial Angle
-    4. Rotate clockwise
-    5. Rotate counterclockwise -> Return to the initial Angle
-    Take the average of the 3 Angle values in stage 1.3.5 as the final alignment Angle
+    编码器对齐分为5个阶段
+    1.设定D轴电流并对齐到初始角度
+    2.逆时针旋转固定角度
+    3.顺时针旋转固定角度->回到初始角度
+    4.顺时针旋转固定角度
+    5.逆时针旋转固定角度->回到初始角度
+    取1.3.5阶段3个角度值的平均值作为最终对齐角度
 */
 Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
-    float ud = 0;
-    float uq = 0;
-    float ia = 0;
-    float ib = 0;
-    float id = 0;
-    float iq = 0;
-    uint8_t sector = 0;
-    int32_t cmp1;
-    int32_t cmp2;
-    int32_t cmp3;
-    /* 
-        align to the initial Angle
-        Considering that the motor is affected by the cogging effect and the rotor stays at an Angle of 30 90 150 210 270 330 in its natural state, the initial alignment Angle should be selected among these values to reduce the error
-    */
+    DQ_Axis_t V_dq;
+    DQ_Axis_t I_dq;
+    AB_Axis_t I_alpha_beta;
+    TIM_t tim;
+
+    /* 初始对齐角度 考虑到电机受齿槽效应影响在自然状态下转子停留在30 90 150 210 270 330等角度,初始对齐角度应在这些值中选择以减小误差 */
     int e_degree = 90;
-    /* rotation angle -> 1/3 round*/
-    int move_e_degree = 120;
+    /* 转动角度 */
+    int move_e_degree = 120; // 1/3 round
     uint16_t raw_data[READ_TIMES];
     float temp = 0;
-    /* angle buffer */
+    /* 各阶段所处角度 */
     float temp_m_ang[6] = {0};
-    /* quadrant buffer */
+    /* 各阶段所处象限 */
     uint8_t quadrant[6] = {0};
 
     // enable output
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
 
+    tim.ARR = TIM1->ARR;
     // set current to 0
-    SVPWM_DQ(ud,uq,DEG_TO_RAD(0),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-    cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-    cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-    cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-    TIM1->CCR1 = cmp1;
-    TIM1->CCR2 = cmp2;
-    TIM1->CCR3 = cmp3;
-    while (id > 0.01f)
+    SVPWM_DQ(&V_dq,DEG_TO_RAD(0),&tim);
+    TIM1->CCR1 = tim.CCR.CCR1;
+    TIM1->CCR2 = tim.CCR.CCR2;
+    TIM1->CCR3 = tim.CCR.CCR3;
+    while (I_dq.D > 0.01f)
     {
-        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
-        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(0));
+        Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
+        Park_Transmission(&I_alpha_beta, &I_dq, DEG_TO_RAD(0));
         osDelay(1);
     }
 
     // current set
-    while (id < current_limit)
+    while (I_dq.D < current_limit)
     {
-        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
-        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(e_degree));
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
+        Park_Transmission(&I_alpha_beta, &I_dq, DEG_TO_RAD(e_degree));
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(e_degree),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
 
-        ud += 0.001f;
-        if (ud > FOC_MAX_MODULATION_RATIO)
+        V_dq.D += 0.001f;
+        if (V_dq.D > foc_ctrl.modulation_ratio)
         {
-            ud = FOC_MAX_MODULATION_RATIO;
+            V_dq.D = foc_ctrl.modulation_ratio;
             break;
         }
         osDelay(1);
@@ -109,7 +96,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         }
         osDelay(1);
     }
-    bubbleSort_u16(raw_data, READ_TIMES);
+    Bubble_Sort_U16(raw_data, READ_TIMES);
     for (uint8_t i = IGNORE_TIMES; i < READ_TIMES - IGNORE_TIMES; i++)
     {
         temp += raw_data[i];
@@ -118,16 +105,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     temp_m_ang[0] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[0] = temp_m_ang[0] / _PI_2;
     temp = 0;
-    // stage 2
+    // 1
     for (int16_t i = 0; i < move_e_degree; i++)
     {
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(++e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(++e_degree),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
 
         osDelay(10);
     }
@@ -140,7 +124,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         }
         osDelay(1);
     }
-    bubbleSort_u16(raw_data, READ_TIMES);
+    Bubble_Sort_U16(raw_data, READ_TIMES);
     for (uint8_t i = IGNORE_TIMES; i < READ_TIMES - IGNORE_TIMES; i++)
     {
         temp += raw_data[i];
@@ -149,16 +133,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     temp_m_ang[1] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[1] = temp_m_ang[1] / _PI_2;
     temp = 0;
-    // stage 3
+    // 2
     for (int16_t i = move_e_degree; i > 0; i--)
     {
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(--e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(--e_degree),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
         osDelay(10);
     }
     osDelay(500);
@@ -170,7 +151,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         }
         osDelay(1);
     }
-    bubbleSort_u16(raw_data, READ_TIMES);
+    Bubble_Sort_U16(raw_data, READ_TIMES);
     for (uint8_t i = IGNORE_TIMES; i < READ_TIMES - IGNORE_TIMES; i++)
     {
         temp += raw_data[i];
@@ -179,16 +160,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     temp_m_ang[2] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[2] = temp_m_ang[2] / _PI_2;
     temp = 0;
-    // stage 4
+    // 3
     for (int16_t i = move_e_degree; i > 0; i--)
     {
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(--e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(--e_degree),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
         osDelay(10);
     }
     osDelay(500);
@@ -200,7 +178,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         }
         osDelay(1);
     }
-    bubbleSort_u16(raw_data, READ_TIMES);
+    Bubble_Sort_U16(raw_data, READ_TIMES);
     for (uint8_t i = IGNORE_TIMES; i < READ_TIMES - IGNORE_TIMES; i++)
     {
         temp += raw_data[i];
@@ -209,16 +187,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     temp_m_ang[3] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[3] = temp_m_ang[3] / _PI_2;
     temp = 0;
-    // stage 5
+    // 4
     for (int16_t i = 0; i < move_e_degree; i++)
     {
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(++e_degree),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(++e_degree),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
         osDelay(10);
     }
     osDelay(500);
@@ -230,7 +205,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         }
         osDelay(1);
     }
-    bubbleSort_u16(raw_data, READ_TIMES);
+    Bubble_Sort_U16(raw_data, READ_TIMES);
     for (uint8_t i = IGNORE_TIMES; i < READ_TIMES - IGNORE_TIMES; i++)
     {
         temp += raw_data[i];
@@ -246,36 +221,45 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     {
         err |= Sensor_Cali_Err_NO_MOVE;
     }
+    
+    // if(fabsf(temp_m_ang[1] - temp_m_ang[0]) > _PI)
+    // {
+    //     if(temp_m_ang[0] < _PI)
+    //     {
+    //         AS5048_para.reverse = 1;
+    //     }
+    //     else
+    //     {
+    //         AS5048_para.reverse = 0;
+    //     }
 
-    if(fabsf(temp_m_ang[1] - temp_m_ang[0]) > _PI)
+    // }
+    // else
+    // {
+    //     if (temp_m_ang[1] > temp_m_ang[0])
+    //     {
+    //         AS5048_para.reverse = 0;
+    //     }
+    //     else
+    //     {
+    //         AS5048_para.reverse = 1;
+    //     }
+    // }
+
+    if(Angle_Delta_Dir(temp_m_ang[0],temp_m_ang[1]) == 1)
     {
-        if(temp_m_ang[0] < _PI)
-        {
-            AS5048_para.reverse = 1;
-        }
-        else
-        {
-            AS5048_para.reverse = 0;
-        }
-
+        AS5048_para.reverse = 0;
     }
     else
     {
-        if (temp_m_ang[1] > temp_m_ang[0])
-        {
-            AS5048_para.reverse = 0;
-        }
-        else
-        {
-            AS5048_para.reverse = 1;
-        }
+        AS5048_para.reverse = 1;
     }
 
     if (ABS_Angle_Delta(temp_m_ang[0], temp_m_ang[2]) < temp && ABS_Angle_Delta(temp_m_ang[2], temp_m_ang[4]) < temp && ABS_Angle_Delta(temp_m_ang[0], temp_m_ang[4]) < temp)
     {
-        /* take the average of the 3 Angle values */
+        /* 三次测量取平均值 */
         temp_m_ang[5] = temp_m_ang[0] + temp_m_ang[2] + temp_m_ang[4];
-        /* If the three results fall in the first and fourth quadrants respectively, the result in the first quadrant needs to be added 360° to the average to avoid problems like (1+1+359)/3=120.33 */
+        /* 如果三次结果分别落在第一和第四象限,取平均值时需要将第一象限的结果加上360°以避免类似(1+1+359)/3=120.33的问题 */
         if(quadrant[0] == 3 || quadrant[2] == 3 || quadrant[4] == 3)
         {
             if(quadrant[0] == 0)

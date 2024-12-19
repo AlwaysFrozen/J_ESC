@@ -21,10 +21,8 @@ typedef enum
     HALL_60_SENSOR,
     IIC_ENCODER,
     SPI_ENCODER,
-    ABI_ENCODER
+    ABI_ENCODER,
 }SENSOR_Type_t;
-
-
 
 typedef enum
 {
@@ -42,9 +40,10 @@ typedef enum
     Sensor_Cali_Err_PHASE_V_ORDER        = 0x00000004,
     Sensor_Cali_Err_PHASE_I_ORDER        = 0x00000008,
     //HALL
-    Sensor_Cali_Err_HALL_ALIGN           = 0x00000100,
-    Sensor_Cali_Err_HALL_TYPE            = 0x00000200,
-    Sensor_Cali_Err_HALL_SEQ             = 0x00000400,
+    Sensor_Cali_Err_HALL_NO_MOVE         = 0x00000100,
+    Sensor_Cali_Err_HALL_ALIGN           = 0x00000200,
+    Sensor_Cali_Err_HALL_TYPE            = 0x00000400,
+    Sensor_Cali_Err_HALL_SEQ             = 0x00000800,
     //Encoder
     Sensor_Cali_Err_NO_MOVE              = 0x00010000,
     Sensor_Cali_Err_ALIGN                = 0x00020000,
@@ -53,7 +52,6 @@ typedef enum
 
 extern Sensor_Cali_t sensor_calibration_status;
 extern Sensor_Cali_Err_t sensor_calibration_err;
-extern float sensor_calibration_current;
 
 Sensor_Cali_Err_t Sensor_Calibration(float current_limit);
 

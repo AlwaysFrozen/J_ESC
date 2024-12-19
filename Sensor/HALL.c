@@ -8,15 +8,12 @@
 #include "FOC_Config.h"
 
 HALL_Sensor_t Hall_Sensor;
-// rough calibration
-uint8_t hall_seq_ideal_120[6] = {2,6,4,5,1,3};
-uint8_t hall_seq_ideal_60[6] = {0,4,6,7,3,1};
-uint8_t hall_seq_calibration_120[6] = {1,2,3,4,5,6};
-uint8_t hall_seq_calibration_60[8] = {0,1,0,3,4,0,6,7};
-float hall_deg_seq_ccw[6] = {_7PI_6,_11PI_6,_3PI_2,_PI_2,_5PI_6,_PI_6};
-float hall_deg_seq_cw[6] = {_3PI_2,_PI_6,_11PI_6,_5PI_6,_7PI_6,_PI_2};
+
 // accurate calibration
-float hall_deg_calibrated[6] = {0};
+float hall_index_calibrated[8] = {0,1,2,3,4,5,0,0};
+float hall_deg_calibrated[8] = {30,90,150,210,270,330,0,0};
+float hall_rad_calibrated[8] = {_PI_6,_PI_2,_5PI_6,_7PI_6,_3PI_2,_11PI_6,0,0};
+
 
 void Hall_Sensor_Init(void)
 {
@@ -42,53 +39,41 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
-    float ud = 0;
-    float uq = 0;
-    float ia = 0;
-    float ib = 0;
-    float id = 0;
-    float iq = 0;
-    uint8_t sector = 0;
-    int32_t cmp1;
-    int32_t cmp2;
-    int32_t cmp3;
+    DQ_Axis_t V_dq;
+    DQ_Axis_t I_dq;
+    AB_Axis_t I_alpha_beta;
+    TIM_t tim;
 
     // enable output
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
-
+    tim.ARR = TIM1->ARR;
     // set current to 0
-    SVPWM_DQ(ud,uq,DEG_TO_RAD(0),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-    cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-    cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-    cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-    TIM1->CCR1 = cmp1;
-    TIM1->CCR2 = cmp2;
-    TIM1->CCR3 = cmp3;
-    while (id > 0.01f)
+    SVPWM_DQ(&V_dq,DEG_TO_RAD(0),&tim);
+    TIM1->CCR1 = tim.CCR.CCR1;
+    TIM1->CCR2 = tim.CCR.CCR2;
+    TIM1->CCR3 = tim.CCR.CCR3;
+    while (I_dq.D > 0.01f)
     {
-        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
-        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(0));
+        Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
+        Park_Transmission(&I_alpha_beta, &I_dq, DEG_TO_RAD(0));
         osDelay(1);
     }
 
     // current set
-    while (id < current_limit)
+    while (I_dq.D < current_limit)
     {
-        Clarke_Transmission(phase_current_A_f[0], phase_current_A_f[1], phase_current_A_f[2], &ia, &ib);
-        Park_Transmission(ia, ib, &id, &iq, DEG_TO_RAD(0));
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(0),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
+        Park_Transmission(&I_alpha_beta, &I_dq, DEG_TO_RAD(0));
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(0),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
 
-        ud += 0.001f;
-        if (ud > FOC_MAX_MODULATION_RATIO)
+        V_dq.D += 0.001f;
+        if (V_dq.D > foc_ctrl.modulation_ratio)
         {
-            ud = FOC_MAX_MODULATION_RATIO;
+            V_dq.D = foc_ctrl.modulation_ratio;
             break;
         }
         osDelay(1);
@@ -107,21 +92,19 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
     uint16_t hall_deg_cw[2][24] = {0};
     uint16_t edge_cnt[2] = {0};
 
-    uint8_t hall_seq_ccw[12];
-    uint8_t hall_seq_cw[12];
-    uint8_t hall_seq_ccw_sort[6];
-    uint8_t hall_seq_120_sort[6];
-    uint8_t hall_seq_60_sort[6];
-
-    for (int16_t i = 0; i < 720; i++) // Rotate 720° CCW
+    int32_t vector_deg = 0;
+    uint32_t cnt = 0;
+    while(edge_cnt[0] < 24 || cnt < 360 * 4)
     {
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(i),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        if(cnt++ > 360 * 5)
+        {
+            err |= Sensor_Cali_Err_HALL_NO_MOVE;
+            break;
+        }
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(vector_deg++),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -132,23 +115,23 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
         {
             Hall_Sensor.hall_index_last = Hall_Sensor.hall_index;
             hall_deg_ccw[0][edge_cnt[0]] = Hall_Sensor.hall_index;
-            hall_deg_ccw[1][edge_cnt[0]++] = i % 360;
-        }
-        if (i % 60 == 0)
-        {
-            hall_seq_ccw[i / 60] = Hall_Sensor.hall_index;
+            hall_deg_ccw[1][edge_cnt[0]] = (int32_t)Normalize_Angle_Degree(vector_deg) % 360;
+            edge_cnt[0]++;
         }
     }
+    cnt = 0;
     osDelay(100);
-    for (int16_t i = 720 - 1; i >= 0; i--) // Rotate 720° CW
+    while(edge_cnt[1] < 24 || cnt < 360 * 4) 
     {
-        SVPWM_DQ(ud,uq,DEG_TO_RAD(i),&sector,TIM1->ARR,&cmp1,&cmp2,&cmp3);
-        cmp1 = _constrain(cmp1, 0, TIM1->ARR);
-        cmp2 = _constrain(cmp2, 0, TIM1->ARR);
-        cmp3 = _constrain(cmp3, 0, TIM1->ARR);
-        TIM1->CCR1 = cmp1;
-        TIM1->CCR2 = cmp2;
-        TIM1->CCR3 = cmp3;
+        if(cnt++ > 360 * 5)
+        {
+            err |= Sensor_Cali_Err_HALL_NO_MOVE;
+            break;
+        }
+        SVPWM_DQ(&V_dq,DEG_TO_RAD(vector_deg--),&tim);
+        TIM1->CCR1 = tim.CCR.CCR1;
+        TIM1->CCR2 = tim.CCR.CCR2;
+        TIM1->CCR3 = tim.CCR.CCR3;
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -159,110 +142,66 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
         {
             Hall_Sensor.hall_index_last = Hall_Sensor.hall_index;
             hall_deg_cw[0][edge_cnt[1]] = Hall_Sensor.hall_index;
-            hall_deg_cw[1][edge_cnt[1]++] = i % 360;
-        }
-        if (i % 60 == 0)
-        {
-            hall_seq_cw[i / 60] = Hall_Sensor.hall_index;
+            hall_deg_cw[1][edge_cnt[1]++] = (int32_t)Normalize_Angle_Degree(vector_deg) % 360;
         }
     }
 
-    // hall_deg_calibrated[0] = DEG_TO_RAD((hall_deg_ccw[1][0] + hall_deg_ccw[1][6] + hall_deg_cw[1][5] + hall_deg_cw[1][11]) / 4);
-    // hall_deg_calibrated[1] = DEG_TO_RAD((hall_deg_ccw[1][1] + hall_deg_ccw[1][7] + hall_deg_cw[1][4] + hall_deg_cw[1][10]) / 4);
-    // hall_deg_calibrated[2] = DEG_TO_RAD((hall_deg_ccw[1][2] + hall_deg_ccw[1][8] + hall_deg_cw[1][3] + hall_deg_cw[1][9]) / 4);
-    // hall_deg_calibrated[3] = DEG_TO_RAD((hall_deg_ccw[1][3] + hall_deg_ccw[1][9] + hall_deg_cw[1][2] + hall_deg_cw[1][8]) / 4);
-    // hall_deg_calibrated[4] = DEG_TO_RAD((hall_deg_ccw[1][4] + hall_deg_ccw[1][10] + hall_deg_cw[1][1] + hall_deg_cw[1][7]) / 4);
-    // hall_deg_calibrated[5] = DEG_TO_RAD((hall_deg_ccw[1][5] + hall_deg_ccw[1][11] + hall_deg_cw[1][0] + hall_deg_cw[1][6]) / 4);
-
-    // hall_deg_seq_ccw[0] = hall_deg_calibrated[3];
-    // hall_deg_seq_ccw[1] = hall_deg_calibrated[5];
-    // hall_deg_seq_ccw[2] = hall_deg_calibrated[4];
-    // hall_deg_seq_ccw[3] = hall_deg_calibrated[1];
-    // hall_deg_seq_ccw[4] = hall_deg_calibrated[2];
-    // hall_deg_seq_ccw[5] = hall_deg_calibrated[0];
-
-    // hall_deg_seq_cw[0] = hall_deg_calibrated[4];
-    // hall_deg_seq_cw[1] = hall_deg_calibrated[0];
-    // hall_deg_seq_cw[2] = hall_deg_calibrated[5];
-    // hall_deg_seq_cw[3] = hall_deg_calibrated[2];
-    // hall_deg_seq_cw[4] = hall_deg_calibrated[3];
-    // hall_deg_seq_cw[5] = hall_deg_calibrated[1];
-
-    for (uint8_t i = 0; i < 5; i++)
+    uint16_t hall_same_cnt_ccw[8] = {0};
+    uint16_t hall_deg_avg_ccw[8] = {0};
+    for(uint8_t i = 0;i < edge_cnt[0];i++)
     {
-        if (hall_seq_ccw[i] != hall_seq_ccw[i + 6])
-        {
-            err |= Sensor_Cali_Err_HALL_ALIGN;
-        }
-        if (hall_seq_cw[i] != hall_seq_cw[i + 6])
-        {
-            err |= Sensor_Cali_Err_HALL_ALIGN;
-        }
-        if (hall_seq_ccw[i] != hall_seq_cw[i])
-        {
-            err |= Sensor_Cali_Err_HALL_ALIGN;
-        }
+        hall_same_cnt_ccw[hall_deg_ccw[0][i]]++;
+        hall_deg_avg_ccw[hall_deg_ccw[0][i]] += hall_deg_ccw[1][i];
     }
-
-    if (err == Sensor_Cali_Err_NONE)
+    for(uint8_t i = 0;i < sizeof(hall_same_cnt_ccw) / sizeof(hall_same_cnt_ccw[0]);i++)
     {
-        memcpy(hall_seq_ccw_sort, hall_seq_ccw, sizeof(hall_seq_ccw_sort));
-        // quickSort(hall_seq_ccw_sort,0,sizeof(hall_seq_ccw_sort) - 1);
-        bubbleSort_u8(hall_seq_ccw_sort, sizeof(hall_seq_ccw_sort));
+        hall_deg_avg_ccw[i] /= hall_same_cnt_ccw[i];
+    }
+    uint16_t hall_same_cnt_cw[8] = {0};
+    uint16_t hall_deg_avg_cw[8] = {0};
+    for(uint8_t i = 0;i < edge_cnt[0];i++)
+    {
+        hall_same_cnt_cw[hall_deg_cw[0][i]]++;
+        hall_deg_avg_cw[hall_deg_cw[0][i]] += hall_deg_cw[1][i];
+    }
+    for(uint8_t i = 0;i < sizeof(hall_same_cnt_cw) / sizeof(hall_same_cnt_cw[0]);i++)
+    {
+        hall_deg_avg_cw[i] /= hall_same_cnt_cw[i];
+    }
 
-        memcpy(hall_seq_120_sort, hall_seq_ideal_120, sizeof(hall_seq_ideal_120));
-        // quickSort(hall_seq_120_sort,0,sizeof(hall_seq_120_sort) - 1);
-        bubbleSort_u8(hall_seq_120_sort, sizeof(hall_seq_120_sort));
+    uint16_t hall_same_cnt[8] = {0};
+    for(uint8_t i = 0;i < sizeof(hall_same_cnt_cw) / sizeof(hall_same_cnt_cw[0]);i++)
+    {
+        hall_same_cnt[i] = hall_same_cnt_ccw[i] + hall_same_cnt_cw[i];
+    }
 
-        memcpy(hall_seq_60_sort, hall_seq_ideal_60, sizeof(hall_seq_ideal_60));
-        // quickSort(hall_seq_60_sort,0,sizeof(hall_seq_60_sort) - 1);
-        bubbleSort_u8(hall_seq_60_sort, sizeof(hall_seq_60_sort));
+    for(uint8_t i = 0;i < 8;i++)
+    {
+        hall_deg_calibrated[i] = Normalize_Angle_Degree(Angle_Average_Degree(hall_deg_avg_ccw[i],hall_deg_avg_cw[i]));
+    }
+    for(uint8_t i = 0;i < 8;i++)
+    {
+        hall_rad_calibrated[i] = Normalize_Angle(Angle_Average(DEG_TO_RAD(hall_deg_avg_ccw[i]),DEG_TO_RAD(hall_deg_avg_cw[i])));
+    }
 
-        if (memcmp(hall_seq_ccw_sort, hall_seq_120_sort, sizeof(hall_seq_120_sort) - 1) == 0)
+    uint8_t index_cnt = 0;
+    for(uint16_t deg = 0;deg < 360;deg++)
+    {
+        for(uint8_t i = 0;i < 8;i++)
         {
-            if (Motor_Config.moto_type == BLDC && bldc_ctrl.sensor_type != HALL_120_SENSOR)
+            if(deg == ((int32_t)hall_deg_calibrated[i]) && hall_same_cnt[i])
             {
-                bldc_ctrl.sensor_type = HALL_120_SENSOR;
-                err |= Sensor_Cali_Err_HALL_TYPE;
+                if(index_cnt > 7)
+                {
+                    err |= Sensor_Cali_Err_HALL_SEQ;
+                    break;
+                }
+                hall_index_calibrated[i] = index_cnt++;
+                break;
             }
-            #if !FOC_DEBUG_HALL
-            else if (Motor_Config.moto_type == FOC && foc_ctrl.sensor_type != HALL_120_SENSOR)
-            {
-                foc_ctrl.sensor_type = HALL_120_SENSOR;
-                err |= Sensor_Cali_Err_HALL_TYPE;
-            }
-            #endif
-
-            for (uint8_t i = 0; i < 6; i++)
-            {
-                hall_seq_calibration_120[hall_seq_ccw[i] - 1] = hall_seq_ideal_120[i];
-            }
-        }
-        else if (memcmp(hall_seq_ccw_sort, hall_seq_60_sort, sizeof(hall_seq_60_sort) - 1) == 0)
-        {
-            if (Motor_Config.moto_type == BLDC && bldc_ctrl.sensor_type != HALL_60_SENSOR)
-            {
-                bldc_ctrl.sensor_type = HALL_60_SENSOR;
-                err |= Sensor_Cali_Err_HALL_TYPE;
-            }
-            #if !FOC_DEBUG_HALL
-            else if (Motor_Config.moto_type == FOC && foc_ctrl.sensor_type != HALL_60_SENSOR)
-            {
-                foc_ctrl.sensor_type = HALL_60_SENSOR;
-                err |= Sensor_Cali_Err_HALL_TYPE;
-            }
-            #endif
-
-            for (uint8_t i = 0; i < 6; i++)
-            {
-                hall_seq_calibration_60[hall_seq_ccw[i]] = hall_seq_ideal_60[i];
-            }
-        }
-        else
-        {
-            err |= Sensor_Cali_Err_HALL_SEQ;
         }
     }
+
 
     // disable output
     TIM1->CCER &= ~0x555;

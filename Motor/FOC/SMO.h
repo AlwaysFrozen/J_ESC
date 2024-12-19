@@ -9,13 +9,21 @@
 #include "FOC_Motor.h"
 #include "PLL.h"
 
-#define SMO_USE_ARCTAN          0
-#define SMO_USE_PLL             1
-
-#define IS_IPM                  0
+#define SMO_USE_ARCTAN          1
+#define SMO_USE_PLL             0
 
 typedef struct SMO
 {
+    FOC_Motor_Type_t motor_type;
+
+    float rs_ohm;
+    float ls_H;
+    float Ld;
+    float Lq;
+    float l_diff;
+    float flux_wb;
+    float dt;
+
     float Gsmopos;       // Parameter: Motor dependent control gain
     float Fsmopos;       // Parameter: Motor dependent plant matrix
     float Gsmopos_DAxis; // Parameter: Motor dependent control gain
@@ -42,6 +50,14 @@ typedef struct SMO
     float Ebeta;      // Variable: Stationary beta-axis back EMF
     float EbetaFinal; // Variable: Filtered EMF for Angle calculation
 
+    AB_Axis_t V_alpha_beta;
+    AB_Axis_t I_alpha_beta;
+    AB_Axis_t I_alpha_beta_estimated;
+    AB_Axis_t I_alpha_beta_error;
+    AB_Axis_t Z_alpha_beta;
+    AB_Axis_t E_alpha_beta;
+    AB_Axis_t E_alpha_beta_final;
+
     float Kslf;      // Parameter: Sliding control filter gain
     float Theta;     // Output: Compensated rotor angle
     float PrevTheta;
@@ -60,7 +76,7 @@ typedef struct SMO
 } SMO_t;
 
 extern SMO_t smo_observer;
-void SMO_Init(SMO_t *s,float speed_fc,float dt);
-void SMO_Run(SMO_t *s, FOC_Para_t *foc_para);
+void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc);
+void SMO_Run(SMO_t *s, FOC_Para_t *para);
 
 #endif

@@ -44,118 +44,118 @@
 // ______----____________----__________--------______------------____------------______--------____
 
 
-void Clarke_Transmission(float a, float b, float c, float *alpha, float *beta)
+void Clarke_Transmission(UVW_Axis_t *uvw, AB_Axis_t *ab)
 {
-    #if HAVE_3_PHASE_CURRENT_SENSOR
-    *alpha = (a - 0.5f * (b + c)) * _2_3;
-    *beta = (_SQRT3_2 * (b - c)) * _2_3;
-    #endif
-
-    #if HAVE_2_PHASE_CURRENT_SENSOR
-    *alpha = a;
-    *beta = _1_SQRT3 * (a + 2 * b);
-    #endif
+    ab->Alpha = (uvw->U - 0.5f * (uvw->V + uvw->W)) * _2_3;
+    ab->Beta = (_SQRT3_2 * (uvw->V - uvw->W)) * _2_3;
 }
 
-void Inverse_Clarke_Transmission(float alpha, float beta, float *a, float *b, float *c)
+void Clarke_Transmission_2(UVW_Axis_t *uvw, AB_Axis_t *ab)
 {
-    *a = alpha;
-    *b = (-alpha + _SQRT3 * beta) / 2;
-    *c = (-alpha - _SQRT3 * beta) / 2;
+    ab->Alpha = uvw->U;
+    ab->Beta = _1_SQRT3 * (uvw->U + 2 * uvw->V);
 }
 
-void Park_Transmission(float alpha, float beta, float *d, float *q, float theta)
+void Inverse_Clarke_Transmission(AB_Axis_t *ab, UVW_Axis_t *uvw)
+{
+    uvw->U = ab->Alpha;
+    uvw->V = (-ab->Alpha + _SQRT3 * ab->Beta) / 2;
+    uvw->W = (-ab->Alpha - _SQRT3 * ab->Beta) / 2;
+}
+
+void Park_Transmission(AB_Axis_t *ab, DQ_Axis_t *dq, float theta)
 {
     float sin_theta = sinf(theta);
     float cos_theta = cosf(theta);
 
-    *d = alpha * cos_theta + beta * sin_theta;
-    *q = -alpha * sin_theta + beta * cos_theta;
+    dq->D = ab->Alpha * cos_theta + ab->Beta * sin_theta;
+    dq->Q = -ab->Alpha * sin_theta + ab->Beta * cos_theta;
 }
 
-void Inverse_Park_Transmission(float d, float q, float *alpha, float *beta, float theta)
+void Inverse_Park_Transmission(DQ_Axis_t *dq, AB_Axis_t *ab, float theta)
 {
     float sin_theta = sinf(theta);
     float cos_theta = cosf(theta);
 
-    *alpha = d * cos_theta - q * sin_theta;
-    *beta = d * sin_theta + q * cos_theta;
+    ab->Alpha = dq->D * cos_theta - dq->Q * sin_theta;
+    ab->Beta = dq->D * sin_theta + dq->Q * cos_theta;
 }
 
-// from VESC Project
-void SVPWM_AB(float v_alpha_rate, float v_beta_rate, uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3)
+uint8_t SVPWM_AB(AB_Axis_t *v_ab_rate, TIM_t *tim)
 {
-    if (v_beta_rate >= 0.0f)
+    uint8_t sector;
+
+    if (v_ab_rate->Beta >= 0.0f)
     {
-        if (v_alpha_rate > 0.0f)
+        if (v_ab_rate->Alpha > 0.0f)
         {
-            if (v_beta_rate / v_alpha_rate >= _SQRT3)
+            if (v_ab_rate->Beta / v_ab_rate->Alpha >= _SQRT3)
             {
-                *sector = 2;
+                sector = 2;
             }
             else
             {
-                *sector = 1;
+                sector = 1;
             }
         }
-        else if (v_alpha_rate < 0.0f)
+        else if (v_ab_rate->Alpha < 0.0f)
         {
-            if (v_beta_rate / v_alpha_rate >= -_SQRT3)
+            if (v_ab_rate->Beta / v_ab_rate->Alpha >= -_SQRT3)
             {
-                *sector = 3;
+                sector = 3;
             }
             else
             {
-                *sector = 2;
+                sector = 2;
             }
         }
         else
         {
-            *sector = 2;
+            sector = 2;
         }
     }
     else
     {
-        if (v_alpha_rate > 0.0f)
+        if (v_ab_rate->Alpha > 0.0f)
         {
-            if (v_beta_rate / v_alpha_rate >= -_SQRT3)
+            if (v_ab_rate->Beta / v_ab_rate->Alpha >= -_SQRT3)
             {
-                *sector = 6;
+                sector = 6;
             }
             else
             {
-                *sector = 5;
+                sector = 5;
             }
         }
-        else if (v_alpha_rate < 0.0f)
+        else if (v_ab_rate->Alpha < 0.0f)
         {
-            if (v_beta_rate / v_alpha_rate >= _SQRT3)
+            if (v_ab_rate->Beta / v_ab_rate->Alpha >= _SQRT3)
             {
-                *sector = 5;
+                sector = 5;
             }
             else
             {
-                *sector = 4;
+                sector = 4;
             }
         }
         else
         {
-            *sector = 5;
+            sector = 5;
         }
     }
 
     int32_t tA, tB, tC;
 
-    switch (*sector)
+    switch (sector)
     {
         // sector 1-2
         case 1:
         {
             // Vector on-times
-            int32_t t1 = (v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
-            int32_t t2 = (_2_SQRT3 * v_beta_rate) * period;
+            int32_t t1 = (v_ab_rate->Alpha - _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
+            int32_t t2 = (_2_SQRT3 * v_ab_rate->Beta) * tim->ARR;
 
-            tC = (period - t1 - t2) / 2;
+            tC = (tim->ARR - t1 - t2) / 2;
             tB = tC + t2;
             tA = tB + t1;
             break;
@@ -165,10 +165,10 @@ void SVPWM_AB(float v_alpha_rate, float v_beta_rate, uint8_t *sector, uint16_t p
         case 2:
         {
             // Vector on-times
-            int32_t t2 = (v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
-            int32_t t3 = (-v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
+            int32_t t2 = (v_ab_rate->Alpha + _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
+            int32_t t3 = (-v_ab_rate->Alpha + _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
 
-            tC = (period - t2 - t3) / 2;
+            tC = (tim->ARR - t2 - t3) / 2;
             tA = tC + t2;
             tB = tA + t3;
             break;
@@ -178,10 +178,10 @@ void SVPWM_AB(float v_alpha_rate, float v_beta_rate, uint8_t *sector, uint16_t p
         case 3:
         {
             // Vector on-times
-            int32_t t3 = (_2_SQRT3 * v_beta_rate) * period;
-            int32_t t4 = (-v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
+            int32_t t3 = (_2_SQRT3 * v_ab_rate->Beta) * tim->ARR;
+            int32_t t4 = (-v_ab_rate->Alpha - _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
 
-            tA = (period - t3 - t4) / 2;
+            tA = (tim->ARR - t3 - t4) / 2;
             tC = tA + t4;
             tB = tC + t3;
             break;
@@ -191,10 +191,10 @@ void SVPWM_AB(float v_alpha_rate, float v_beta_rate, uint8_t *sector, uint16_t p
         case 4:
         {
             // Vector on-times
-            int32_t t4 = (-v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
-            int32_t t5 = (-_2_SQRT3 * v_beta_rate) * period;
+            int32_t t4 = (-v_ab_rate->Alpha + _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
+            int32_t t5 = (-_2_SQRT3 * v_ab_rate->Beta) * tim->ARR;
 
-            tA = (period - t4 - t5) / 2;
+            tA = (tim->ARR - t4 - t5) / 2;
             tB = tA + t4;
             tC = tB + t5;
             break;
@@ -204,10 +204,10 @@ void SVPWM_AB(float v_alpha_rate, float v_beta_rate, uint8_t *sector, uint16_t p
         case 5:
         {
             // Vector on-times
-            int32_t t5 = (-v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
-            int32_t t6 = (v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
+            int32_t t5 = (-v_ab_rate->Alpha - _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
+            int32_t t6 = (v_ab_rate->Alpha - _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
 
-            tB = (period - t5 - t6) / 2;
+            tB = (tim->ARR - t5 - t6) / 2;
             tA = tB + t6;
             tC = tA + t5;
             break;
@@ -217,102 +217,106 @@ void SVPWM_AB(float v_alpha_rate, float v_beta_rate, uint8_t *sector, uint16_t p
         case 6:
         {
             // Vector on-times
-            int32_t t6 = (-_2_SQRT3 * v_beta_rate) * period;
-            int32_t t1 = (v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
+            int32_t t6 = (-_2_SQRT3 * v_ab_rate->Beta) * tim->ARR;
+            int32_t t1 = (v_ab_rate->Alpha + _1_SQRT3 * v_ab_rate->Beta) * tim->ARR;
 
-            tB = (period - t6 - t1) / 2;
+            tB = (tim->ARR - t6 - t1) / 2;
             tC = tB + t6;
             tA = tC + t1;
             break;
         }
     }
 
-    tA = _constrain(tA, 0.0f, period);
-    tB = _constrain(tB, 0.0f, period);
-    tC = _constrain(tC, 0.0f, period);
+    tA = _constrain(tA, 0, tim->ARR);
+    tB = _constrain(tB, 0, tim->ARR);
+    tC = _constrain(tC, 0, tim->ARR);
 
-    *CMP1 = tA;
-    *CMP2 = tB;
-    *CMP3 = tC;
+    tim->CCR.CCR1 = tA;
+    tim->CCR.CCR2 = tB;
+    tim->CCR.CCR3 = tC;
+
+    return sector;
 }
 
-void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3)
+uint8_t SVPWM_AB_Voltage(AB_Axis_t *v_ab, float us_max, TIM_t *tim)
 {
-    float v_max = v_dc * _2_3;
-    float v_alpha_rate = v_alpha / v_max;
-    float v_beta_rate = v_beta / v_max;
+    uint8_t sector;
+    AB_Axis_t v_ab_rate;
 
-    if (v_beta >= 0.0f)
+    v_ab_rate.Alpha = v_ab->Alpha / us_max;
+    v_ab_rate.Beta = v_ab->Beta / us_max;
+
+    if (v_ab_rate.Beta >= 0.0f)
     {
-        if (v_alpha > 0.0f)
+        if (v_ab_rate.Alpha > 0.0f)
         {
-            if (v_beta / v_alpha >= _SQRT3)
+            if (v_ab_rate.Beta / v_ab_rate.Alpha >= _SQRT3)
             {
-                *sector = 2;
+                sector = 2;
             }
             else
             {
-                *sector = 1;
+                sector = 1;
             }
         }
-        else if (v_alpha < 0.0f)
+        else if (v_ab_rate.Alpha < 0.0f)
         {
-            if (v_beta / v_alpha >= -_SQRT3)
+            if (v_ab_rate.Beta / v_ab_rate.Alpha >= -_SQRT3)
             {
-                *sector = 3;
+                sector = 3;
             }
             else
             {
-                *sector = 2;
+                sector = 2;
             }
         }
         else
         {
-            *sector = 2;
+            sector = 2;
         }
     }
     else
     {
-        if (v_alpha > 0.0f)
+        if (v_ab_rate.Alpha > 0.0f)
         {
-            if (v_beta / v_alpha >= -_SQRT3)
+            if (v_ab_rate.Beta / v_ab_rate.Alpha >= -_SQRT3)
             {
-                *sector = 6;
+                sector = 6;
             }
             else
             {
-                *sector = 5;
+                sector = 5;
             }
         }
-        else if (v_alpha < 0.0f)
+        else if (v_ab_rate.Alpha < 0.0f)
         {
-            if (v_beta / v_alpha >= _SQRT3)
+            if (v_ab_rate.Beta / v_ab_rate.Alpha >= _SQRT3)
             {
-                *sector = 5;
+                sector = 5;
             }
             else
             {
-                *sector = 4;
+                sector = 4;
             }
         }
         else
         {
-            *sector = 5;
+            sector = 5;
         }
     }
 
     int32_t tA, tB, tC;
 
-    switch (*sector)
+    switch (sector)
     {
         // sector 1-2
         case 1:
         {
             // Vector on-times
-            int32_t t1 = (v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
-            int32_t t2 = (_2_SQRT3 * v_beta_rate) * period;
+            int32_t t1 = (v_ab_rate.Alpha - _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
+            int32_t t2 = (_2_SQRT3 * v_ab_rate.Beta) * tim->ARR;
 
-            tC = (period - t1 - t2) / 2;
+            tC = (tim->ARR - t1 - t2) / 2;
             tB = tC + t2;
             tA = tB + t1;
             break;
@@ -322,10 +326,10 @@ void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector
         case 2:
         {
             // Vector on-times
-            int32_t t2 = (v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
-            int32_t t3 = (-v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
+            int32_t t2 = (v_ab_rate.Alpha + _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
+            int32_t t3 = (-v_ab_rate.Alpha + _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
 
-            tC = (period - t2 - t3) / 2;
+            tC = (tim->ARR - t2 - t3) / 2;
             tA = tC + t2;
             tB = tA + t3;
             break;
@@ -335,10 +339,10 @@ void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector
         case 3:
         {
             // Vector on-times
-            int32_t t3 = (_2_SQRT3 * v_beta_rate) * period;
-            int32_t t4 = (-v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
+            int32_t t3 = (_2_SQRT3 * v_ab_rate.Beta) * tim->ARR;
+            int32_t t4 = (-v_ab_rate.Alpha - _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
 
-            tA = (period - t3 - t4) / 2;
+            tA = (tim->ARR - t3 - t4) / 2;
             tC = tA + t4;
             tB = tC + t3;
             break;
@@ -348,10 +352,10 @@ void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector
         case 4:
         {
             // Vector on-times
-            int32_t t4 = (-v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
-            int32_t t5 = (-_2_SQRT3 * v_beta_rate) * period;
+            int32_t t4 = (-v_ab_rate.Alpha + _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
+            int32_t t5 = (-_2_SQRT3 * v_ab_rate.Beta) * tim->ARR;
 
-            tA = (period - t4 - t5) / 2;
+            tA = (tim->ARR - t4 - t5) / 2;
             tB = tA + t4;
             tC = tB + t5;
             break;
@@ -361,10 +365,10 @@ void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector
         case 5:
         {
             // Vector on-times
-            int32_t t5 = (-v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
-            int32_t t6 = (v_alpha_rate - _1_SQRT3 * v_beta_rate) * period;
+            int32_t t5 = (-v_ab_rate.Alpha - _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
+            int32_t t6 = (v_ab_rate.Alpha - _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
 
-            tB = (period - t5 - t6) / 2;
+            tB = (tim->ARR - t5 - t6) / 2;
             tA = tB + t6;
             tC = tA + t5;
             break;
@@ -374,45 +378,48 @@ void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector
         case 6:
         {
             // Vector on-times
-            int32_t t6 = (-_2_SQRT3 * v_beta_rate) * period;
-            int32_t t1 = (v_alpha_rate + _1_SQRT3 * v_beta_rate) * period;
+            int32_t t6 = (-_2_SQRT3 * v_ab_rate.Beta) * tim->ARR;
+            int32_t t1 = (v_ab_rate.Alpha + _1_SQRT3 * v_ab_rate.Beta) * tim->ARR;
 
-            tB = (period - t6 - t1) / 2;
+            tB = (tim->ARR - t6 - t1) / 2;
             tC = tB + t6;
             tA = tC + t1;
             break;
         }
     }
 
-    tA = _constrain(tA, 0.0f, period);
-    tB = _constrain(tB, 0.0f, period);
-    tC = _constrain(tC, 0.0f, period);
+    tA = _constrain(tA, 0, tim->ARR);
+    tB = _constrain(tB, 0, tim->ARR);
+    tC = _constrain(tC, 0, tim->ARR);
 
-    *CMP1 = tA;
-    *CMP2 = tB;
-    *CMP3 = tC;
+    tim->CCR.CCR1 = tA;
+    tim->CCR.CCR2 = tB;
+    tim->CCR.CCR3 = tC;
+
+    return sector;
 }
 
-void SVPWM_DQ(float Ud_rate, float Uq_rate, float angle, uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3)
+uint8_t SVPWM_DQ(DQ_Axis_t *v_dq_rate, float angle, TIM_t *tim)
 {
+    uint8_t sector;
     float angle_out;
     float angle_offset;
     float Uout;    
 
-    if (Ud_rate)
+    if (v_dq_rate->D)
     {
-        Uout = sqrtf(Ud_rate * Ud_rate + Uq_rate * Uq_rate);
-        angle_out = Normalize_Angle(angle + atan2f(Uq_rate, Ud_rate));
+        Uout = sqrtf(v_dq_rate->D * v_dq_rate->D + v_dq_rate->Q * v_dq_rate->Q);
+        angle_out = Normalize_Angle(angle + atan2f(v_dq_rate->Q, v_dq_rate->D));
     }
     else
     {
-        Uout = Uq_rate;
+        Uout = v_dq_rate->Q;
         angle_out = Normalize_Angle(angle + _PI_2);
     }
 
-    *sector = floorf(angle_out / _PI_3);
-    angle_offset = angle_out - *sector * _PI_3;
-    *sector += 1;
+    sector = floorf(angle_out / _PI_3);
+    angle_offset = angle_out - sector * _PI_3;
+    sector += 1;
 
     float st, ct;
     st = sinf(angle_offset);
@@ -431,7 +438,7 @@ void SVPWM_DQ(float Ud_rate, float Uq_rate, float angle, uint8_t *sector, uint16
     float T0 = (1.0f - T1 - T2) * 0.5f; // actually this T0 is (t0 + t7) / 2,because t0 == t7
 
     float Ta, Tb, Tc;
-    switch (*sector)
+    switch (sector)
     {
         case 1:
             Ta = T1 + T2 + T0;
@@ -481,30 +488,34 @@ void SVPWM_DQ(float Ud_rate, float Uq_rate, float angle, uint8_t *sector, uint16
     Tb = _constrain(Tb, 0.0f, 1.0f);
     Tc = _constrain(Tc, 0.0f, 1.0f);
 
-    *CMP1 = period * Ta;
-    *CMP2 = period * Tb;
-    *CMP3 = period * Tc;
+    tim->CCR.CCR1 = tim->ARR * Ta;
+    tim->CCR.CCR2 = tim->ARR * Tb;
+    tim->CCR.CCR3 = tim->ARR * Tc;
+
+    return sector;
 }
-void SVPWM_DQ_Voltage(float Ud, float Uq, float Udc, float angle, uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3)
+
+uint8_t SVPWM_DQ_Voltage(DQ_Axis_t *v_dq, float us_max, float angle, TIM_t *tim)
 {
+    uint8_t sector;
     float angle_out;
     float angle_offset;
     float Uout;    
 
-    if (Ud)
+    if (v_dq->D)
     {
-        Uout = sqrtf(Ud * Ud + Uq * Uq) / (Udc * _2_3);
-        angle_out = Normalize_Angle(angle + atan2f(Uq, Ud));
+        Uout = sqrtf(v_dq->D * v_dq->D + v_dq->Q * v_dq->Q) / us_max;
+        angle_out = Normalize_Angle(angle + atan2f(v_dq->Q, v_dq->D));
     }
     else
     {
-        Uout = Uq / (Udc * _2_3);
+        Uout = v_dq->Q / us_max;
         angle_out = Normalize_Angle(angle + _PI_2);
     }
 
-    *sector = floorf(angle_out / _PI_3);
-    angle_offset = angle_out - *sector * _PI_3;
-    *sector += 1;
+    sector = floorf(angle_out / _PI_3);
+    angle_offset = angle_out - sector * _PI_3;
+    sector += 1;
 
     float st, ct;
     st = sinf(angle_offset);
@@ -514,7 +525,7 @@ void SVPWM_DQ_Voltage(float Ud, float Uq, float Udc, float angle, uint8_t *secto
     float T0 = (1.0f - T1 - T2) * 0.5f; // actually this T0 is (t0 + t7) / 2,because t0 == t7
 
     float Ta, Tb, Tc;
-    switch (*sector)
+    switch (sector)
     {
         case 1:
             Ta = T1 + T2 + T0;
@@ -564,26 +575,79 @@ void SVPWM_DQ_Voltage(float Ud, float Uq, float Udc, float angle, uint8_t *secto
     Tb = _constrain(Tb, 0.0f, 1.0f);
     Tc = _constrain(Tc, 0.0f, 1.0f);
 
-    *CMP1 = period * Ta;
-    *CMP2 = period * Tb;
-    *CMP3 = period * Tc;
+    tim->CCR.CCR1 = tim->ARR * Ta;
+    tim->CCR.CCR2 = tim->ARR * Tb;
+    tim->CCR.CCR3 = tim->ARR * Tc;
+
+    return sector;
 }
 
-void MTPA_Cal(FOC_Para_t * foc_para,float flux_wb,float Ld,float Lq)
+void SPWM_AB(AB_Axis_t *v_ab_rate, TIM_t *tim)
 {
-    float ld_lq_diff = Ld - Lq;
+    UVW_Axis_t uvw;
+    float max = 0,min = 0,ei;
 
+    Inverse_Clarke_Transmission(v_ab_rate,&uvw);
+    max = uvw.U > uvw.V ? uvw.U : uvw.V;
+    max = uvw.W > max ? uvw.W : max;
+    min = uvw.U < uvw.V ? uvw.U : uvw.V;
+    min = uvw.W < min ? uvw.W : min;
+    ei = -0.5f * (max + min);
+    uvw.U = uvw.U + ei;
+    uvw.V = uvw.V + ei;
+    uvw.W = uvw.W + ei;
+    uvw.U = uvw.U * _2_3;
+    uvw.V = uvw.V * _2_3;
+    uvw.W = uvw.W * _2_3;
+    uvw.U += 0.5f;
+    uvw.V += 0.5f;
+    uvw.W += 0.5f;
+    uvw.U = _constrain(uvw.U, 0.0f, 1.0f);
+    uvw.V = _constrain(uvw.V, 0.0f, 1.0f);
+    uvw.W = _constrain(uvw.W, 0.0f, 1.0f);
+    tim->CCR.CCR1 = tim->ARR * uvw.U;
+    tim->CCR.CCR2 = tim->ARR * uvw.V;
+    tim->CCR.CCR3 = tim->ARR * uvw.W;
+}
+
+void SPWM_AB_Voltage(AB_Axis_t *v_ab, uint32_t v_dc, TIM_t *tim)
+{
+    UVW_Axis_t uvw;
+    float max = 0,min = 0,ei;
+
+    Inverse_Clarke_Transmission(v_ab,&uvw);
+    max = uvw.U > uvw.V ? uvw.U : uvw.V;
+    max = uvw.W > max ? uvw.W : max;
+    min = uvw.U < uvw.V ? uvw.U : uvw.V;
+    min = uvw.W < min ? uvw.W : min;
+    ei = -0.5f * (max + min);
+    uvw.U = uvw.U + ei;
+    uvw.V = uvw.V + ei;
+    uvw.W = uvw.W + ei;
+    uvw.U = uvw.U / v_dc;
+    uvw.V = uvw.V / v_dc;
+    uvw.W = uvw.W / v_dc;
+    uvw.U += 0.5f;
+    uvw.V += 0.5f;
+    uvw.W += 0.5f;
+    uvw.U = _constrain(uvw.U, 0.0f, 1.0f);
+    uvw.V = _constrain(uvw.V, 0.0f, 1.0f);
+    uvw.W = _constrain(uvw.W, 0.0f, 1.0f);
+    tim->CCR.CCR1 = tim->ARR * uvw.U;
+    tim->CCR.CCR2 = tim->ARR * uvw.V;
+    tim->CCR.CCR3 = tim->ARR * uvw.W;
+}
+
+void MTPA_Cal(FOC_CONTROL_t *ctrl,FOC_Para_t * para)
+{
     // // https://zhuanlan.zhihu.com/p/558759346
-    // // foc_para->Id_target = SQ(foc_para->Iq_target) * ld_lq_diff / flux_wb;
-    // foc_para->Id_target = SQ(foc_para->Iq) * ld_lq_diff / flux_wb;
+    // para->I_dq_target.D = SQ(para->I_dq.Q) * ctrl->Ldiff / ctrl->Flux;
 
     // https://zhuanlan.zhihu.com/p/624474437
-    // foc_para->Id_target = (sqrtf(SQ(flux_wb) + 4 * SQ(ld_lq_diff) * SQ(foc_para->Iq_target)) - flux_wb) / (2 * ld_lq_diff);
-    foc_para->Id_target = (sqrtf(SQ(flux_wb) + 4 * SQ(ld_lq_diff) * SQ(foc_para->Iq)) - flux_wb) / (2 * ld_lq_diff);
+    para->I_dq_target.D = (sqrtf(SQ(ctrl->Flux) + 4 * SQ(ctrl->Ldiff) * SQ(para->I_dq.Q)) - ctrl->Flux) / (2 * ctrl->Ldiff);
 
     // // form VESC
-    // float iq_ref = Min_Abs(foc_para->Iq_target,foc_para->Iq);
-    // foc_para->Id_target = (flux_wb - sqrtf(SQ(flux_wb) + 8.0f * SQ(ld_lq_diff * iq_ref))) / (4.0f * ld_lq_diff);
-    // foc_para->Iq_target = SIGN(foc_para->Iq_target) * sqrtf(SQ(foc_para->Iq_target) - SQ(foc_para->Id_target));
+    // float iq_ref = Min_Abs(para->I_dq_target.Q,para->I_dq.Q);
+    // para->I_dq_target.D = (sqrtf(SQ(ctrl->Flux) + 8 * SQ(ctrl->Ldiff * iq_ref)) - ctrl->Flux) / (4 * ctrl->Ldiff);
 }
 

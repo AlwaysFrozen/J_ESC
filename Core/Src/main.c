@@ -59,6 +59,7 @@ SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi3;
 
 TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 DMA_HandleTypeDef hdma_tim4_ch1;
@@ -70,6 +71,7 @@ uint32_t tail = 0x7f800000;
 
 uint8_t motor_start = 0;
 uint32_t restart_delay_ms = 200;
+float sensor_calibration_current = 10;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -115,6 +117,7 @@ static void MX_DAC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 void StartDefaultTask(void *argument);
@@ -137,7 +140,16 @@ DTG[7:5]=111 => DT=(32+DTG[4:0]) * tdtg,Tdtg=16*tDTS。
 */
 uint8_t Dead_Time_Cal(uint32_t TIM_Clock,uint8_t CKD,uint32_t ns)
 {
-    uint32_t t_DTS = 1000000000 / (TIM_Clock / CKD);
+    // CKD must be 1 or 2 or 4
+    if(CKD == 0)
+    {
+        CKD = 1;
+    }
+    else if(CKD >= 3)
+    {
+        CKD = 4;
+    }
+    float t_DTS = 1000000000.0f / (TIM_Clock / CKD);
     uint8_t DTG = 0;
 
     if(ns < t_DTS * 127)
@@ -162,6 +174,10 @@ uint8_t Dead_Time_Cal(uint32_t TIM_Clock,uint8_t CKD,uint32_t ns)
         DTG = ns / (16 * t_DTS) - 32;
         DTG &= 0x1f;
         DTG |= 0xe0;
+    }
+    else
+    {
+        DTG = 0xff;
     }
 
     return DTG;
@@ -221,7 +237,8 @@ int main(void)
     MX_ADC3_Init();
     // PWM output
     MX_TIM1_Init();
-    #ifdef HALL_TIM_INPUT0
+    MX_TIM2_Init();
+    #ifdef HALL_TIM_CAPTURE
     MX_TIM3_Init();
     HAL_TIMEx_HallSensor_Start_IT(&htim3);
     #endif
@@ -272,6 +289,8 @@ int main(void)
     #ifdef ADC_TRIGER_SOURCE_TIM1_CC4
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
     #endif
+
+    HAL_TIM_Base_Start(&htim2);
 
     HAL_ADCEx_InjectedStart_IT(&hadc1);
     HAL_ADC_Start(&hadc2);
@@ -432,7 +451,7 @@ static void MX_ADC1_Init(void)
      */
     sConfigInjected.InjectedChannel = ADC_CHANNEL_0;
     sConfigInjected.InjectedRank = 1;
-    sConfigInjected.InjectedNbrOfConversion = 2;
+    sConfigInjected.InjectedNbrOfConversion = 4;
     sConfigInjected.InjectedSamplingTime = ADC_SAMPLE_CYCLES;
     sConfigInjected.ExternalTrigInjecConvEdge = ADC_EXTERNALTRIGINJECCONVEDGE_RISING;
     #ifndef ADC_TRIGER_SOURCE_TIM1_CC4
@@ -457,13 +476,13 @@ static void MX_ADC1_Init(void)
         Error_Handler();
     }
 
-    sConfigInjected.InjectedChannel = ADC_CHANNEL_1;
+    sConfigInjected.InjectedChannel = ADC_CHANNEL_10;
     sConfigInjected.InjectedRank = 3;
     if (HAL_ADCEx_InjectedConfigChannel(&hadc1, &sConfigInjected) != HAL_OK)
     {
         Error_Handler();
     }
-    sConfigInjected.InjectedChannel = ADC_CHANNEL_2;
+    sConfigInjected.InjectedChannel = ADC_CHANNEL_10;
     sConfigInjected.InjectedRank = 4;
     if (HAL_ADCEx_InjectedConfigChannel(&hadc1, &sConfigInjected) != HAL_OK)
     {
@@ -524,7 +543,7 @@ static void MX_ADC2_Init(void)
      */
     sConfigInjected.InjectedChannel = ADC_CHANNEL_1;
     sConfigInjected.InjectedRank = 1;
-    sConfigInjected.InjectedNbrOfConversion = 2;
+    sConfigInjected.InjectedNbrOfConversion = 4;
     sConfigInjected.InjectedSamplingTime = ADC_SAMPLE_CYCLES;
     sConfigInjected.AutoInjectedConv = DISABLE;
     sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
@@ -543,13 +562,13 @@ static void MX_ADC2_Init(void)
         Error_Handler();
     }
 
-    sConfigInjected.InjectedChannel = ADC_CHANNEL_2;
+    sConfigInjected.InjectedChannel = ADC_CHANNEL_11;
     sConfigInjected.InjectedRank = 3;
     if (HAL_ADCEx_InjectedConfigChannel(&hadc2, &sConfigInjected) != HAL_OK)
     {
         Error_Handler();
     }
-    sConfigInjected.InjectedChannel = ADC_CHANNEL_0;
+    sConfigInjected.InjectedChannel = ADC_CHANNEL_11;
     sConfigInjected.InjectedRank = 4;
     if (HAL_ADCEx_InjectedConfigChannel(&hadc2, &sConfigInjected) != HAL_OK)
     {
@@ -610,7 +629,7 @@ static void MX_ADC3_Init(void)
      */
     sConfigInjected.InjectedChannel = ADC_CHANNEL_2;
     sConfigInjected.InjectedRank = 1;
-    sConfigInjected.InjectedNbrOfConversion = 2;
+    sConfigInjected.InjectedNbrOfConversion = 4;
     sConfigInjected.InjectedSamplingTime = ADC_SAMPLE_CYCLES;
     sConfigInjected.AutoInjectedConv = DISABLE;
     sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
@@ -629,13 +648,13 @@ static void MX_ADC3_Init(void)
         Error_Handler();
     }
 
-    sConfigInjected.InjectedChannel = ADC_CHANNEL_0;
+    sConfigInjected.InjectedChannel = ADC_CHANNEL_12;
     sConfigInjected.InjectedRank = 3;
     if (HAL_ADCEx_InjectedConfigChannel(&hadc3, &sConfigInjected) != HAL_OK)
     {
         Error_Handler();
     }
-    sConfigInjected.InjectedChannel = ADC_CHANNEL_1;
+    sConfigInjected.InjectedChannel = ADC_CHANNEL_12;
     sConfigInjected.InjectedRank = 4;
     if (HAL_ADCEx_InjectedConfigChannel(&hadc3, &sConfigInjected) != HAL_OK)
     {
@@ -712,7 +731,7 @@ static void MX_SPI1_Init(void)
     hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
     hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
     hspi1.Init.NSS = SPI_NSS_SOFT;
-    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
     hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
     hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
     hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -902,7 +921,7 @@ static void MX_TIM1_Init(void)
     sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
     sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
     sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-    sBreakDeadTimeConfig.DeadTime = 0;
+    sBreakDeadTimeConfig.DeadTime = Dead_Time_Cal(PWM_TIM_BASE_FREQ,1,PWN_DEAD_TIME_US);
     sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
     sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
     sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_ENABLE;
@@ -916,6 +935,57 @@ static void MX_TIM1_Init(void)
     HAL_TIM_MspPostInit(&htim1);
 }
 
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 8400;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_RESET;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
+  if (HAL_TIM_SlaveConfigSynchro(&htim2, &sSlaveConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
 /**
  * @brief TIM4 Initialization Function
  * @param None
@@ -1154,14 +1224,51 @@ void ScheduleTask(void *argument)
 
 void VCPTask(void *argument)
 {
-
     for (;;)
     {
         osDelay(10);
+    }
+}
 
-        /* VOFA+ debug */
+char cmd_switch[] = "switch:";
+char cmd_iq[] = "Iq:";
+char cmd_id[] = "Id:";
+char cmd_spd[] = "rpm:";
+char cmd_dir[] = "dir:";
 
-        // CDC_Transmit_FS((uint8_t *)debug_arr,sizeof(debug_arr));
+int dir = CCW;
+float rpm = 0;
+
+void VOFA_Cmd_Analyze(const char *buffer,uint32_t len)
+{
+    if(strncmp(buffer,cmd_switch,sizeof(cmd_switch) - 1) == 0)
+    {
+        if(buffer[sizeof(cmd_switch) - 1] == '0' && motor_start == 1)
+        {
+            motor_start = 0;
+        }
+        else if(buffer[sizeof(cmd_switch) - 1] == '1' && motor_start == 0)
+        {
+            motor_start = 1;
+        }
+    }
+    else if(strncmp(buffer,cmd_iq,sizeof(cmd_iq) - 1) == 0)
+    {
+        foc_para.I_dq_target.Q = strtod(buffer + sizeof(cmd_iq) - 1,NULL);
+    }
+    else if(strncmp(buffer,cmd_id,sizeof(cmd_id) - 1) == 0)
+    {
+        foc_para.I_dq_target.D = strtod(buffer + sizeof(cmd_id) - 1,NULL);
+    }
+    else if(strncmp(buffer,cmd_spd,sizeof(cmd_spd) - 1) == 0)
+    {
+        rpm = strtod(buffer + sizeof(cmd_spd) - 1,NULL);
+        foc_para.Speed_target = dir * rpm;
+    }
+    else if(strncmp(buffer,cmd_dir,sizeof(cmd_dir) - 1) == 0)
+    {
+        dir = strtod(buffer + sizeof(cmd_dir) - 1,NULL);
+        foc_para.Speed_target = dir * rpm;
     }
 }
 

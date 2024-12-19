@@ -189,54 +189,98 @@ void DebugMon_Handler(void)
  */
 void ADC_IRQHandler(void)
 {
-    GPIOB->BSRR = GPIO_PIN_0;
+    timer_cnt_arr[0] = TIM1->CNT;
+    if((TIM1->CR1 & 0x10) == 0x10)
+    {
+        timer_cnt_arr[0] = TIM1->ARR * 2 - timer_cnt_arr[0];
+    }
+    // GPIOB->BSRR = GPIO_PIN_0;
 
     ADC1->SR = 0;
     ADC2->SR = 0;
     ADC3->SR = 0;
 
+    // adc_value[0] = ADC1->JDR1;
+    // adc_value[1] = ADC2->JDR1;
+    // adc_value[2] = ADC3->JDR1;
+    // adc_value[3] = ADC1->JDR2;
+    // adc_value[4] = ADC2->JDR2;
+    // adc_value[5] = ADC3->JDR2;
+
     adc_value[0] = ADC1->JDR1;
     adc_value[1] = ADC2->JDR1;
     adc_value[2] = ADC3->JDR1;
-    adc_value[3] = ADC1->JDR2;
-    adc_value[4] = ADC2->JDR2;
-    adc_value[5] = ADC3->JDR2;
+    adc_value[3] = (ADC1->JDR2 + ADC1->JDR3 + ADC1->JDR4) / 3;
+    adc_value[4] = (ADC2->JDR2 + ADC2->JDR3 + ADC2->JDR4) / 3;
+    adc_value[5] = (ADC3->JDR2 + ADC3->JDR3 + ADC3->JDR4) / 3;
 
-    phase_voltage_V[0] = adc_value[0] * phase_voltage_V_RATIO;
-    phase_voltage_V[1] = adc_value[1] * phase_voltage_V_RATIO;
-    phase_voltage_V[2] = adc_value[2] * phase_voltage_V_RATIO;
-    phase_current_A[0] = ((int32_t)adc_value[3] - (int32_t)adc_cali.ADC_Cali_Value[3]) * phase_current_A_RATIO;
-    phase_current_A[1] = ((int32_t)adc_value[4] - (int32_t)adc_cali.ADC_Cali_Value[4]) * phase_current_A_RATIO;
-    phase_current_A[2] = ((int32_t)adc_value[5] - (int32_t)adc_cali.ADC_Cali_Value[5]) * phase_current_A_RATIO;
+    phase_voltage_V.U = adc_value[0] * phase_voltage_V_RATIO;
+    phase_voltage_V.V = adc_value[1] * phase_voltage_V_RATIO;
+    phase_voltage_V.W = adc_value[2] * phase_voltage_V_RATIO;
+    phase_current_A.U = (adc_value[3] - adc_cali.ADC_Cali_Value[3]) * phase_current_A_RATIO;
+    phase_current_A.V = (adc_value[4] - adc_cali.ADC_Cali_Value[4]) * phase_current_A_RATIO;
+    phase_current_A.W = (adc_value[5] - adc_cali.ADC_Cali_Value[5]) * phase_current_A_RATIO;
 
-#if 0
-    FirstOrder_LPF_Cacl(*p_phase_voltage_V[0], phase_voltage_V_f[0], Filter_Rate.phase_voltage_filter_rate);
-    FirstOrder_LPF_Cacl(*p_phase_voltage_V[1], phase_voltage_V_f[1], Filter_Rate.phase_voltage_filter_rate);
-    FirstOrder_LPF_Cacl(*p_phase_voltage_V[2], phase_voltage_V_f[2], Filter_Rate.phase_voltage_filter_rate);
-    FirstOrder_LPF_Cacl(*p_phase_current_A[0], phase_current_A_f[0], Filter_Rate.phase_current_filter_rate);
-    FirstOrder_LPF_Cacl(*p_phase_current_A[1], phase_current_A_f[1], Filter_Rate.phase_current_filter_rate);
-    FirstOrder_LPF_Cacl(*p_phase_current_A[2], phase_current_A_f[2], Filter_Rate.phase_current_filter_rate);
-#else
-    float temp_voltage[3] = {*p_phase_voltage_V[0], *p_phase_voltage_V[1], *p_phase_voltage_V[2]};
-    float temp_current[3] = {*p_phase_current_A[0], *p_phase_current_A[1], *p_phase_current_A[2]};
-    #if 0
-    float fc = Virtual_Moto.electronic_speed_hz * 2;
-    fc = _constrain(fc,MIN_LPF_FC,MAX_LPF_FC);
-    LPF_Mult_F32(phase_voltage_V_f, temp_voltage, 3, fc, Virtual_Moto.dt);
-    LPF_Mult_F32(phase_current_A_f, temp_current, 3, fc, Virtual_Moto.dt);
-    #else
-    LPF_Mult_F32(phase_voltage_V_f, temp_voltage, 3, MAX_LPF_FC, Virtual_Moto.dt);
-    LPF_Mult_F32(phase_current_A_f, temp_current, 3, MAX_LPF_FC, Virtual_Moto.dt);
-    #endif
-#endif
+    // if(TIM1->CCR1 < (TIM1->ARR - 500) && TIM1->CCR2 < (TIM1->ARR - 500))
+    // {
+    //     phase_current_A.W = -(phase_current_A.U + phase_current_A.V);
+    // }
+    // else
+    // {
+    //     if(TIM1->CCR1 > TIM1->CCR2 && TIM1->CCR1 > TIM1->CCR3)
+    //     {
+    //         phase_current_A.U = -(phase_current_A.V + phase_current_A.W);
+    //     }
+    //     else if(TIM1->CCR2 > TIM1->CCR1 && TIM1->CCR2 > TIM1->CCR3)
+    //     {
+    //         phase_current_A.V = -(phase_current_A.U + phase_current_A.W);
+    //     }
+    //     else if(TIM1->CCR3 > TIM1->CCR1 && TIM1->CCR3 > TIM1->CCR2)
+    //     {
+    //         phase_current_A.W = -(phase_current_A.U + phase_current_A.V);
+    //     }
+    // }
 
-    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1,DAC_ALIGN_12B_R,_constrain(2048 + phase_current_A[0] / 4,0,4095));
-    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2,DAC_ALIGN_12B_R,_constrain(2048 + phase_current_A_f[0] / 4,0,4095));
+    timer_cnt_arr[1] = TIM1->CNT;
+    if ((TIM1->CR1 & 0x10) == 0x10)
+    {
+        timer_cnt_arr[1] = TIM1->ARR * 2 - timer_cnt_arr[1];
+    }
+
+    memcpy(&phase_voltage_V_f,p_phase_voltage_V,sizeof(phase_voltage_V_f));
+    memcpy(&phase_current_A_f,p_phase_current_A,sizeof(phase_current_A_f));
+
+    // #if 0
+    // FirstOrder_LPF_Cacl(p_phase_voltage_V->U, phase_voltage_V_f.U, Filter_Rate.phase_voltage_filter_rate);
+    // FirstOrder_LPF_Cacl(p_phase_voltage_V->V, phase_voltage_V_f.V, Filter_Rate.phase_voltage_filter_rate);
+    // FirstOrder_LPF_Cacl(p_phase_voltage_V->W, phase_voltage_V_f.W, Filter_Rate.phase_voltage_filter_rate);
+    // FirstOrder_LPF_Cacl(p_phase_current_A->U, phase_current_A_f.U, Filter_Rate.phase_current_filter_rate);
+    // FirstOrder_LPF_Cacl(p_phase_current_A->V, phase_current_A_f.V, Filter_Rate.phase_current_filter_rate);
+    // FirstOrder_LPF_Cacl(p_phase_current_A->W, phase_current_A_f.W, Filter_Rate.phase_current_filter_rate);
+    // #else
+    // #if 0
+    // float fc = Virtual_Moto.electronic_speed_hz * 2;
+    // fc = _constrain(fc,MIN_LPF_FC,MAX_LPF_FC);
+    // LPF_UVW_F32(&phase_voltage_V_f,p_phase_voltage_V,MAX_LPF_FC, Virtual_Moto.dt);
+    // LPF_UVW_F32(&phase_current_A_f,p_phase_current_A,MAX_LPF_FC, Virtual_Moto.dt);
+    // #else
+    // LPF_UVW_F32(&phase_voltage_V_f, p_phase_voltage_V, MAX_LPF_FC, Virtual_Moto.dt);
+    // LPF_UVW_F32(&phase_current_A_f, p_phase_current_A, MAX_LPF_FC, Virtual_Moto.dt);
+    // #endif
+    // #endif
+
+    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1,DAC_ALIGN_12B_R,_constrain(2048 + phase_current_A.U / 4,0,4095));
+    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2,DAC_ALIGN_12B_R,_constrain(2048 + phase_current_A_f.U / 4,0,4095));
 
     Virtual_Moto.V_bus_v = Vbus_ADC * BUS_VOLTAGE_RATIO;
     FirstOrder_LPF_Cacl(Virtual_Moto.V_bus_v, Virtual_Moto.V_bus_v_f, Filter_Rate.bus_voltage_filter_rate);
 
-    GPIOB->BSRR = GPIO_PIN_1;
+    timer_cnt_arr[2] = TIM1->CNT;
+    if((TIM1->CR1 & 0x10) == 0x10)
+    {
+        timer_cnt_arr[2] = TIM1->ARR * 2 - timer_cnt_arr[2];
+    }
+    // GPIOB->BSRR = GPIO_PIN_1;
 
     if (sensor_calibration_status == Sensor_Calibrated)
     {
@@ -264,8 +308,13 @@ void ADC_IRQHandler(void)
         }
     }
 
-    GPIOB->BSRR = (uint32_t)GPIO_PIN_1 << 16U;
-    GPIOB->BSRR = (uint32_t)GPIO_PIN_0 << 16U;
+    timer_cnt_arr[3] = TIM1->CNT;
+    if((TIM1->CR1 & 0x10) == 0x10)
+    {
+        timer_cnt_arr[3] = TIM1->ARR * 2 - timer_cnt_arr[3];
+    }
+    // GPIOB->BSRR = (uint32_t)GPIO_PIN_1 << 16U;
+    // GPIOB->BSRR = (uint32_t)GPIO_PIN_0 << 16U;
 }
 
 /**

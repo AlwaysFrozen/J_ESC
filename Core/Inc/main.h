@@ -29,14 +29,20 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
 
+#include "string.h"
+#include <stdio.h>
+#include <stdlib.h>
+
 // #define DAC_DEBUG
-// #define HALL_TIM_INPUT
+// #define HALL_TIM_CAPTURE
 // #define PWN_INPUT
 
-#define DEBUG_VALUE_CNT   (20)
-#define DEBUG_ARR_CNT   (DEBUG_VALUE_CNT + 1)
+#define DEBUG_VALUE_CNT   (10)
+#define DEBUG_ARR_CNT     (DEBUG_VALUE_CNT + 1)
 //Debug Data
 extern float debug_arr[DEBUG_ARR_CNT];
+void VOFA_Cmd_Analyze(const char *buffer,uint32_t len);
+
 
 // #define PWN_ADC_DEBUG
 

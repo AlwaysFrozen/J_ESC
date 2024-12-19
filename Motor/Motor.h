@@ -7,25 +7,23 @@
 #include "stdint.h"
 #include "stdlib.h"
 #include "string.h"
-#include "math.h"
-#include "My_Math.h"
 #include "main.h"
 
 #include "usbd_cdc_if.h"
 
 
 #define PWM_TIM_BASE_FREQ           (168000000U)
-
-#define MAX_PHASE_CURRENT           (16)
+#define PWN_DEAD_TIME_US            (250)
+#define BOARD_MAX_PHASE_CURRENT     (10)
 
 #define BUS_VOLTAGE_RATIO           (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) mv
 #define phase_voltage_V_RATIO       (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) / 1000 v
-// #define phase_current_A_RATIO       (0.080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 / 1000 a     //0.5m ohm
-#define phase_current_A_RATIO       (0.0080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 / 1000 a     //5m ohm
+#define phase_current_A_RATIO       (0.080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 / 1000 a     //0.5m ohm
+// #define phase_current_A_RATIO       (0.0080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 / 1000 a     //5m ohm
 // #define phase_current_A_RATIO       (0.002014652f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.02 / 1000 a        //20m ohm
 
 #define MIN_LPF_FC                  (200)
-#define MAX_LPF_FC                  (10000)
+#define MAX_LPF_FC                  (20000)
 
 typedef enum
 {
@@ -74,6 +72,38 @@ typedef enum
 
 typedef struct
 {
+    float U;
+    float V;
+    float W;
+}UVW_Axis_t;
+
+typedef struct
+{
+    float Alpha;
+    float Beta;
+}AB_Axis_t;
+
+typedef struct
+{
+    float D;
+    float Q;
+}DQ_Axis_t;
+
+typedef struct
+{
+    uint32_t CCR1;
+    uint32_t CCR2;
+    uint32_t CCR3;
+}CCR_t;
+
+typedef struct
+{
+    uint32_t ARR;
+    CCR_t CCR;
+}TIM_t;
+
+typedef struct
+{
     uint8_t is_running;
     Motor_State_t state;
     Quadrant_t run_quadrant;
@@ -97,6 +127,8 @@ extern MOTOR_Type_t motor_type_now;
 
 extern Filter_Rate_t Filter_Rate;
 extern Virtual_Motor_t Virtual_Moto;
+
+extern uint16_t timer_cnt_arr[10];
 
 void MOS_Driver_Enable(void);
 void MOS_Driver_Disable(void);

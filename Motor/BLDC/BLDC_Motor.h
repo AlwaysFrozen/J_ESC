@@ -32,6 +32,7 @@ typedef enum
     BLDC_VVVF_VF,
     BLDC_VVVF_FF,
     BLDC_VVVF_VFF,
+    BLDC_VVVF_AUTO,
 }BLDC_VVVF_Method_t;
 
 typedef struct 
@@ -84,11 +85,17 @@ typedef struct
     int32_t step_time_avg;
     int32_t step_time_mse;
     /* vol & cur */
-    float I_bus_ma;
-    float I_bus_ma_f;
+    float Us;
+    float Is;
+    float Is_f;
+    /* Bus */
+    float V_bus;
+    float I_bus;
+    /* power */
+    float power;
     /* PWM */
     uint32_t PWM_freq_now;
-    uint16_t TIM1_ARR_now;
+    uint16_t TIM_ARR_now;
     uint16_t duty;
     /* err */
     uint32_t err;
@@ -96,6 +103,8 @@ typedef struct
 
 typedef struct 
 {
+    /* Timer */
+    TIM_TypeDef * pTIM;
     /* sensor config */
     SENSOR_Type_t sensor_type;
     /* motor config */
@@ -112,6 +121,7 @@ typedef struct
     uint16_t start_step_max;
     uint16_t start_max_mse;
     /* sensorless run config */
+    uint8_t rapid_demagnetization_enable;
     uint8_t befm_detect_delay_angle;
     uint8_t befm_filter_angle;
     /* stall protect */
@@ -140,14 +150,21 @@ void Start_BLDC_Motor(void);
 void Stop_BLDC_Motor(void);
 void Init_BLDC_Motor(void);
 
-void MOS_Q15PWM(uint16_t ARR_value,uint16_t CCR_value);
-void MOS_Q16PWM(uint16_t ARR_value,uint16_t CCR_value);
-void MOS_Q24PWM(uint16_t ARR_value,uint16_t CCR_value);
-void MOS_Q26PWM(uint16_t ARR_value,uint16_t CCR_value);
-void MOS_Q34PWM(uint16_t ARR_value,uint16_t CCR_value);
-void MOS_Q35PWM(uint16_t ARR_value,uint16_t CCR_value);
-void Brake(void);
-void Full_Brake(void);
-void Plug_Brake(void);
+void MOS_Q16PWM(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q26PWM(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q24PWM(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q34PWM(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q35PWM(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q15PWM(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q16PWM_Q2_ON(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q26PWM_Q4_OFF(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q24PWM_Q3_ON(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q34PWM_Q5_OFF(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q35PWM_Q1_ON(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void MOS_Q15PWM_Q6_OFF(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+
+void Brake(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void Full_Brake(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
+void Plug_Brake(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run);
 
 #endif

@@ -41,40 +41,57 @@ float Ramp_Update(Ramp_t *ramp,float in)
     return ramp->output;
 }
 
-void LPF_Mult_F32(float *value,float *sample,uint32_t num,float fc,float ts)
+float LPF_Alpha_Cal(float fc,float dt)
 {
-    float t = 1.0f / (_2PI * fc);
-    float alpha = _constrain((ts / (ts + t)),0.0f,1.0f);
+    float rc = 1.0f / (_2PI * fc);
+    float alpha = _constrain((dt / (dt + rc)),0.0f,1.0f);
+    return alpha;
+}
+
+void LPF_Mult_F32(float *value,float *sample,uint32_t num,float fc,float dt)
+{
+    float rc = 1.0f / (_2PI * fc);
+    float alpha = _constrain((dt / (dt + rc)),0.0f,1.0f);
     for(uint32_t i = 0;i < num;i++)
     {
         value[i] += (sample[i] - value[i]) * alpha;
     }
 }
 
-void LPF_F32(float *value,float sample,float fc,float ts)
+void LPF_F32(float *value,float sample,float fc,float dt)
 {
-    float t = 1.0f / (_2PI * fc);
-    float alpha = _constrain((ts / (ts + t)),0.0f,1.0f);
+    float rc = 1.0f / (_2PI * fc);
+    float alpha = _constrain((dt / (dt + rc)),0.0f,1.0f);
     *value += (sample - *value) * alpha;
 }
 
-void Inverse_LPF_Mult_F32(float *value,float *sample,float *sample_last,uint32_t num,float fc,float ts)
+void LPF_UVW_F32(UVW_Axis_t *value,UVW_Axis_t *sample,float fc,float dt)
 {
-    float t = _constrain((1.0f / (_2PI * fc)),0.0f,1.0f);
+    float rc = 1.0f / (_2PI * fc);
+    float alpha = _constrain((dt / (dt + rc)),0.0f,1.0f);
+
+    value->U += (sample->U - value->U) * alpha;
+    value->V += (sample->V - value->V) * alpha;
+    value->W += (sample->W - value->W) * alpha;
+}
+
+void Inverse_LPF_Mult_F32(float *value,float *sample,float *sample_last,uint32_t num,float fc,float dt)
+{
+    float rc = _constrain((1.0f / (_2PI * fc)),0.0f,1.0f);
     for(uint32_t i = 0;i < num;i++)
     {
-        value[i] = ((t + ts) * sample[i] - t * sample_last[i]) / ts;
+        value[i] = ((rc + dt) * sample[i] - rc * sample_last[i]) / dt;
     }
 }
 
-void Inverse_LPF_F32(float *value,float sample,float sample_last,float fc,float ts)
+void Inverse_LPF_F32(float *value,float sample,float sample_last,float fc,float dt)
 {
-    if (fc <= 0.0f || ts <= 0.0f) 
+    if (fc <= 0.0f || dt <= 0.0f) 
     {
         *value = sample;
     }
-    float t = _constrain((1.0f / (_2PI * fc)),0.0f,1.0f);
-    *value = ((t + ts) * sample - t * sample_last) / ts;
+    float rc = _constrain((1.0f / (_2PI * fc)),0.0f,1.0f);
+    *value = ((rc + dt) * sample - rc * sample_last) / dt;
 }
 
 float Max_Abs(float va, float vb)
@@ -138,7 +155,7 @@ uint8_t Number_In_Absolute_Range_f32(float num,float base,float range)
     }
 }
 
-void quickSort(int32_t *number, uint32_t first, uint32_t last)
+void Quick_Sort(int32_t *number, uint32_t first, uint32_t last)
 {
     uint32_t i, j, pivot;
     int32_t temp;
@@ -166,13 +183,13 @@ void quickSort(int32_t *number, uint32_t first, uint32_t last)
         number[j] = temp;
         if (j >= 1)
         {
-            quickSort(number, first, j - 1);
+            Quick_Sort(number, first, j - 1);
         }
-        quickSort(number, j + 1, last);
+        Quick_Sort(number, j + 1, last);
     }
 }
 
-void bubbleSort_u8(uint8_t *arr,uint16_t len)
+void Bubble_Sort_U8(uint8_t *arr,uint16_t len)
 {
     uint8_t temp;
 
@@ -190,7 +207,7 @@ void bubbleSort_u8(uint8_t *arr,uint16_t len)
     }
 }
 
-void bubbleSort_u16(uint16_t *arr,uint16_t len)
+void Bubble_Sort_U16(uint16_t *arr,uint16_t len)
 {
     uint16_t temp;
 
@@ -208,7 +225,7 @@ void bubbleSort_u16(uint16_t *arr,uint16_t len)
     }
 }
 
-void bubbleSort_i32(int32_t *arr,uint16_t len)
+void Bubble_Sort_I32(int32_t *arr,uint16_t len)
 {
     uint16_t temp;
 
@@ -226,7 +243,7 @@ void bubbleSort_i32(int32_t *arr,uint16_t len)
     }
 }
 
-void bubbleSort_f32(float *arr,uint16_t len)
+void Bubble_Sort_F32(float *arr,uint16_t len)
 {
     float temp;
 
@@ -271,8 +288,8 @@ int32_t Find_Most_Repeated_Element(int32_t arr[], uint32_t len,int32_t *res)
     uint32_t slow_p = 0, fast_p = 1;
     uint32_t max_cnt = 0, temp_cnt = 0;
 
-    // bubbleSort_i32(arr,len);
-    quickSort(arr,0,len - 1);
+    // Bubble_Sort_I32(arr,len);
+    Quick_Sort(arr,0,len - 1);
 
     while (fast_p < len)
     {
@@ -303,7 +320,7 @@ int32_t Find_Most_Repeated_Element(int32_t arr[], uint32_t len,int32_t *res)
     return max_cnt;
 }
 
-bool saturate_vector_2d(float *x, float *y, float max)
+bool Saturate_Vector_2d(float *x, float *y, float max)
 {
     bool retval = false;
     float mag = sqrtf(SQ(*x) + SQ(*y));
@@ -325,64 +342,97 @@ bool saturate_vector_2d(float *x, float *y, float max)
     return retval;
 }
 
-// limited angle to 0~2pi rads
-float Normalize_Angle(float angle)
+bool Saturate_Vector_2d_fixed(float *x, float *y, float max, uint8_t fixed_index)
 {
-    float a = fmodf(angle, _2PI);
+    bool retval = false;
+    float max_abs = 0;
+    float temp = 0;
+
+    switch(fixed_index)
+    {
+        case 1:
+            max_abs = sqrtf(SQ(max) - SQ(*x));
+            temp = *y;
+            temp = _constrain(temp,-max_abs,max_abs);
+            retval = temp != *y;
+            *y = temp;
+            break;
+
+        case 2:
+            max_abs = sqrtf(SQ(max) - SQ(*y));
+            temp = *x;
+            temp = _constrain(temp,-max_abs,max_abs);
+            retval = temp != *x;
+            *x = temp;
+            break;
+
+        default:
+            retval = Saturate_Vector_2d(x, y, max);
+            break;
+    }
+
+    return retval;
+}
+
+
+// limited rad to 0~2pi rads
+float Normalize_Angle(float rad)
+{
+    float a = fmodf(rad, _2PI);
     return a >= 0 ? a : (a + _2PI);
 }
 
-// limited angle to 0~pi rads
-float Normalize_Angle_PI(float angle)
+// limited rad to 0~pi rads
+float Normalize_Angle_PI(float rad)
 {
-    float a = fmodf(angle, _PI);
+    float a = fmodf(rad, _PI);
     return a >= 0 ? a : (a + _PI);
 }
 
-// limited angle to 0~360 degree
-float Normalize_Angle_Degree(float angle)
+// limited deg to 0~360 degree
+float Normalize_Angle_Degree(float deg)
 {
-    float a = fmodf(angle, 360.0f);
+    float a = fmodf(deg, 360.0f);
     return a >= 0 ? a : (a + 360.0f);
 }
 
-// limited angle to 0~180 degree
-float Normalize_Angle_180Degree(float angle)
+// limited deg to 0~180 degree
+float Normalize_Angle_180Degree(float deg)
 {
-    float a = fmodf(angle, 180.0f);
+    float a = fmodf(deg, 180.0f);
     return a >= 0 ? a : (a + 180.0f);
 }
 
 // Calculate the difference between the two angles
-float ABS_Angle_Delta(float angle0,float angle1)
+float ABS_Angle_Delta(float rad0,float rad1)
 {
-    float angle = 0;
+    float rad = 0;
     float abs_delta = 0;
 
-    angle0 = Normalize_Angle(angle0);
-    angle1 = Normalize_Angle(angle1);
-    abs_delta = fabsf(angle0 - angle1);
+    rad0 = Normalize_Angle(rad0);
+    rad1 = Normalize_Angle(rad1);
+    abs_delta = fabsf(rad0 - rad1);
 
     if (abs_delta < _PI)
     {
-        angle = abs_delta;
+        rad = abs_delta;
     }
     else
     {
-        angle = _2PI - abs_delta;
+        rad = _2PI - abs_delta;
     }
 
-    return angle;
+    return rad;
 }
 
-float ABS_Angle_Delta_Degree(float angle0, float angle1)
+float ABS_Angle_Delta_Degree(float deg0, float deg1)
 {
     float angle = 0;
     float abs_delta = 0;
 
-    angle0 = Normalize_Angle_Degree(angle0);
-    angle1 = Normalize_Angle_Degree(angle1);
-    abs_delta = fabsf(angle0 - angle1);
+    deg0 = Normalize_Angle_Degree(deg0);
+    deg1 = Normalize_Angle_Degree(deg1);
+    abs_delta = fabsf(deg0 - deg1);
 
     if (abs_delta < 180)
     {
@@ -395,3 +445,142 @@ float ABS_Angle_Delta_Degree(float angle0, float angle1)
 
     return angle;
 }
+
+int8_t Angle_Delta_Dir(float rad0, float rad1)
+{
+    float angle_delta = 0;
+    int8_t dir = 0;
+
+    rad0 = Normalize_Angle(rad0);
+    rad1 = Normalize_Angle(rad1);
+    angle_delta = rad0 - rad1;
+
+    if (angle_delta < -_PI)
+    {
+        angle_delta += _2PI;
+    }
+    else if (angle_delta > _PI)
+    {
+        angle_delta -= _2PI;
+    }
+
+    dir = -SIGN(angle_delta);
+
+    return dir;
+}
+
+int8_t Angle_Delta_Dir_Degree(float deg0, float deg1)
+{
+    float angle_delta = 0;
+    int8_t dir = 0;
+
+    deg0 = Normalize_Angle_Degree(deg0);
+    deg1 = Normalize_Angle_Degree(deg1);
+    angle_delta = deg0 - deg1;
+
+    if (angle_delta < -180.0f)
+    {
+        angle_delta += 360.0f;
+    }
+    else if (angle_delta > 180.0f)
+    {
+        angle_delta -= 360.0f;
+    }
+
+    dir = -SIGN(angle_delta);
+
+    return dir;
+}
+
+float Angle_Average(float rad0, float rad1)
+{
+    float sin_sum = sinf(rad0) + sinf(rad1);
+    float cos_sum = cosf(rad0) + cosf(rad1);
+
+    return Normalize_Angle(atan2f(sin_sum, cos_sum));
+}
+
+float Angle_Weighted_Average(float rad0, float rad1, float weight)
+{
+    float sin_sum = sinf(rad0) * weight + sinf(rad1) * (1.0f - weight);
+    float cos_sum = cosf(rad0) * weight + cosf(rad1) * (1.0f - weight);
+
+    return Normalize_Angle(atan2f(sin_sum, cos_sum));
+}
+
+float Angle_Average_Degree(float deg0, float deg1)
+{
+    deg0 = DEG_TO_RAD(deg0);
+    deg1 = DEG_TO_RAD(deg1);
+    float sin_sum = sinf(deg0) + sinf(deg1);
+    float cos_sum = cosf(deg0) + cosf(deg1);
+
+    return Normalize_Angle_Degree(RAD_TO_DEG(atan2f(sin_sum, cos_sum)));
+}
+
+float Angle_Weighted_Average_Degree(float deg0, float deg1, float weight)
+{
+    deg0 = DEG_TO_RAD(deg0);
+    deg1 = DEG_TO_RAD(deg1);
+    float sin_sum = sinf(deg0) * weight + sinf(deg1) * (1.0f - weight);
+    float cos_sum = cosf(deg0) * weight + cosf(deg1) * (1.0f - weight);
+
+    return Normalize_Angle_Degree(RAD_TO_DEG(atan2f(sin_sum, cos_sum)));
+}
+
+float Angle_Average_Mult(float *rads, uint32_t nums)
+{
+    float sin_sum = 0.0;
+    float cos_sum = 0.0;
+
+    for (uint32_t i = 0; i < nums; i++)
+    {
+        sin_sum += sinf(rads[i]);
+        cos_sum += cosf(rads[i]);
+    }
+
+    return Normalize_Angle(atan2f(sin_sum, cos_sum));
+}
+
+float Angle_Weighted_Average_Mult(float *rads, float *weight, uint32_t nums)
+{
+    float sin_sum = 0.0;
+    float cos_sum = 0.0;
+
+    for (uint32_t i = 0; i < nums; i++)
+    {
+        sin_sum += sinf(rads[i]) * weight[i];
+        cos_sum += cosf(rads[i]) * weight[i];
+    }
+
+    return Normalize_Angle(atan2f(sin_sum, cos_sum));
+}
+
+float Angle_Average_Degree_Mult(float *degs, uint32_t nums)
+{
+    float sin_sum = 0.0;
+    float cos_sum = 0.0;
+
+    for (uint32_t i = 0; i < nums; i++)
+    {
+        sin_sum += sinf(DEG_TO_RAD(degs[i]));
+        cos_sum += cosf(DEG_TO_RAD(degs[i]));
+    }
+
+    return Normalize_Angle_Degree(RAD_TO_DEG(atan2f(sin_sum, cos_sum)));
+}
+
+float Angle_Weighted_Average_Degree_Mult(float *degs, float *weight, uint32_t nums)
+{
+    float sin_sum = 0.0;
+    float cos_sum = 0.0;
+
+    for (uint32_t i = 0; i < nums; i++)
+    {
+        sin_sum += sinf(DEG_TO_RAD(degs[i])) * weight[i];
+        cos_sum += cosf(DEG_TO_RAD(degs[i])) * weight[i];
+    }
+
+    return Normalize_Angle_Degree(RAD_TO_DEG(atan2f(sin_sum, cos_sum)));
+}
+

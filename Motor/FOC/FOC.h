@@ -8,16 +8,18 @@
 #include "FOC_Config.h"
 #include "FOC_Motor.h"
 
-void Clarke_Transmission(float a,float b,float c,float *alpha,float *beta);
-void Inverse_Clarke_Transmission(float alpha,float beta,float *a,float *b,float *c);
-void Park_Transmission(float alpha,float beta,float *d,float *q,float theta);
-void Inverse_Park_Transmission(float d,float q,float *alpha,float *beta,float theta);
-void SVPWM_AB(float v_alpha_rate,float v_beta_rate,uint8_t *sector,uint16_t period,int32_t *CMP1,int32_t *CMP2,int32_t *CMP3);
-void SVPWM_AB_Voltage(float v_alpha, float v_beta, uint32_t v_dc,uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3);
-void SVPWM_DQ(float Ud_rate,float Uq_rate,float angle,uint8_t *sector,uint16_t period,int32_t *CMP1,int32_t *CMP2,int32_t *CMP3);
-void SVPWM_DQ_Voltage(float Ud, float Uq, float Udc, float angle, uint8_t *sector, uint16_t period, int32_t *CMP1, int32_t *CMP2, int32_t *CMP3);
-
-void MTPA_Cal(FOC_Para_t * foc_para,float flux_wb,float Ld,float Lq);
+void Clarke_Transmission(UVW_Axis_t *uvw, AB_Axis_t *ab);
+void Clarke_Transmission_2(UVW_Axis_t *uvw, AB_Axis_t *ab);
+void Inverse_Clarke_Transmission(AB_Axis_t *ab, UVW_Axis_t *uvw);
+void Park_Transmission(AB_Axis_t *ab, DQ_Axis_t *dq, float theta);
+void Inverse_Park_Transmission(DQ_Axis_t *dq, AB_Axis_t *ab, float theta);
+uint8_t SVPWM_AB(AB_Axis_t *v_ab_rate, TIM_t *tim);
+uint8_t SVPWM_AB_Voltage(AB_Axis_t *v_ab, float us_max, TIM_t *tim);
+uint8_t SVPWM_DQ(DQ_Axis_t *v_dq_rate, float angle, TIM_t *tim);
+uint8_t SVPWM_DQ_Voltage(DQ_Axis_t *v_dq, float us_max, float angle, TIM_t *tim);
+void SPWM_AB(AB_Axis_t *v_ab_rate, TIM_t *tim);
+void SPWM_AB_Voltage(AB_Axis_t *v_ab, uint32_t v_dc, TIM_t *tim);
+void MTPA_Cal(FOC_CONTROL_t *ctrl,FOC_Para_t * para);
 
 
 #endif

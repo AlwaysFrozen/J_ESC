@@ -11,10 +11,9 @@
 
 #include "Encoder.h"
 #include "AS5048a.h"
-#include "FOC.h"
 
 // Debug Data
-extern float debug_arr[21];
+extern float debug_arr[DEBUG_ARR_CNT];
 
 VIS_RUN_t vis_run;
 VIS_CONTROL_t  vis_ctrl = 
@@ -116,27 +115,27 @@ void VIS_Process(void)
                     switch(vis_run.step_index_now)
                     {
                         case 1:
-                            current_list[0] = fabsf(phase_current_A[0]);
+                            current_list[0] = fabsf(phase_current_A.U);
                             break;
 
                         case 4:
-                            current_list[1] = fabsf(phase_current_A[0]);
+                            current_list[1] = fabsf(phase_current_A.U);
                             break;
 
                         case 2:
-                            current_list[2] = fabsf(phase_current_A[2]);
+                            current_list[2] = fabsf(phase_current_A.W);
                             break;
                         
                         case 5:
-                            current_list[3] = fabsf(phase_current_A[2]);
+                            current_list[3] = fabsf(phase_current_A.W);
                             break;
 
                         case 3:
-                            current_list[4] = fabsf(phase_current_A[1]);
+                            current_list[4] = fabsf(phase_current_A.V);
                             break;
                         
                         case 6:
-                            current_list[5] = fabsf(phase_current_A[1]);
+                            current_list[5] = fabsf(phase_current_A.V);
                             // index = (uint8_t)(current_list[0] < current_list[1]) + ((uint8_t)(current_list[2] < current_list[3]) << 1) + ((uint8_t)(current_list[4] < current_list[5]) << 2);
                             index = (uint8_t)(current_list[0] > current_list[1]) + ((uint8_t)(current_list[2] > current_list[3]) << 1) + ((uint8_t)(current_list[4] > current_list[5]) << 2);
                             index_list[--vis_run.loop_num_cnt] = index;
@@ -279,28 +278,6 @@ void VIS_Process(void)
         }
     }
 
-    // debug_arr[0] = phase_voltage_V[0];
-    // debug_arr[1] = phase_voltage_V[1];
-    // debug_arr[2] = phase_voltage_V[2];
-    // debug_arr[3] = phase_voltage_V_f[0];
-    // debug_arr[4] = phase_voltage_V_f[1];
-    // debug_arr[5] = phase_voltage_V_f[2];
-    // debug_arr[6] = fabsf(phase_current_A[0]);
-    // debug_arr[7] = fabsf(phase_current_A[1]);
-    // debug_arr[8] = fabsf(phase_current_A[2]);
-    // debug_arr[9] = phase_current_A_f[0];
-    // debug_arr[10] = phase_current_A_f[1];
-    // debug_arr[11] = phase_current_A_f[2];
-    // debug_arr[12] = vis_run.step_index_now;
-    // debug_arr[13] = vis_run.step_index_next;
-    // debug_arr[14] = vis_run.VIS_index;
-    // debug_arr[15] = vis_run.VIS_e_angle;
-    // debug_arr[16] = 0;
-    // debug_arr[17] = 0;
-    // debug_arr[18] = (int)(AS5048_para.e_angle / _PI_3) % 6 * _PI_3;
-    // debug_arr[19] = AS5048_para.e_angle;
-
-    // CDC_Transmit_FS((uint8_t *)debug_arr,sizeof(debug_arr));
 }
 
 void Clear_Vis(void)

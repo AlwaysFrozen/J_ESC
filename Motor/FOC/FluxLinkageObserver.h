@@ -8,24 +8,21 @@
 #include "FOC_Motor.h"
 #include "PLL.h"
 
-#define IS_IPM                  0
-
 typedef struct _OBSERVER_Obj_
 {
+    FOC_Motor_Type_t motor_type;
+    
     float rs_ohm;
     float ls_H;
+    float l_diff;
     float flux_wb;
     float dt;
     float gain;
 
-    float R_I_a;
-    float R_I_b;
-    float flux_a;
-    float flux_b;
-    float flux_s_a;
-    float flux_s_b;
-    float flux_r_a;
-    float flux_r_b;
+    AB_Axis_t R_I;
+    AB_Axis_t Flux_Sum;
+    AB_Axis_t Flux_Stator;
+    AB_Axis_t Flux_Rotor;
     float flux_r_err;
     float Theta;
     PLL_t pll;
@@ -38,6 +35,6 @@ typedef struct _OBSERVER_Obj_
 extern FLO_t flo_observer;
 
 
-void FLO_Init(FLO_t *obs,float speed_fc,float dt);
-void FLO_Run(FLO_t *obs,FOC_Para_t *foc_para);
+void FLO_Init(FOC_CONTROL_t *ctrl,FLO_t *obs,float speed_fc);
+void FLO_Run(FLO_t *obs,FOC_Para_t *para);
 #endif

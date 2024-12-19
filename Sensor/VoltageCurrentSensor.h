@@ -19,15 +19,14 @@ typedef struct
 }ADC_Cali_t;
 
 extern ADC_Cali_t adc_cali;
-
 extern uint16_t Vbus_ADC;
 extern float adc_value[6];
-extern float phase_voltage_V[3];
-extern float phase_voltage_V_f[3];
-extern float phase_current_A[3];
-extern float phase_current_A_f[3];
-extern float *p_phase_voltage_V[3];
-extern float *p_phase_current_A[3];
+extern UVW_Axis_t phase_voltage_V;
+extern UVW_Axis_t phase_voltage_V_f;
+extern UVW_Axis_t phase_current_A;
+extern UVW_Axis_t phase_current_A_f;
+extern UVW_Axis_t *p_phase_voltage_V;
+extern UVW_Axis_t *p_phase_current_A;
 
 Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void);
 

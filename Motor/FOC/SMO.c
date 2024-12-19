@@ -5,7 +5,7 @@
 
 SMO_t smo_observer;
 
-void SMO_Init(SMO_t *s,float speed_fc,float dt)
+void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc)
 {
     //                R * Ts
     // Fsmopos = 1 - --------
@@ -23,37 +23,47 @@ void SMO_Init(SMO_t *s,float speed_fc,float dt)
     //     divide over two to get phase inductance. If 2 mH are
     //     measured from phase to phase, then L = 1 mH
 
+    s->motor_type = ctrl->motor_type;
+    s->rs_ohm = ctrl->Rs;
+    s->ls_H = ctrl->Ls;
+    s->Ld = ctrl->Ld;
+    s->Lq = ctrl->Lq;
+    s->l_diff = ctrl->Ldiff;
+    s->flux_wb = ctrl->Flux;
+    s->dt = ctrl->current_loop_dt;
+
     float TemporalFloat;
-    TemporalFloat = 1 - Rs_R * dt / Ls_H;
+    TemporalFloat = 1 - s->rs_ohm * s->dt / s->ls_H;
     if (TemporalFloat < 0.0f)
         s->Fsmopos = 0.0f;
     else
         s->Fsmopos = TemporalFloat;
 
-    TemporalFloat = dt / Ls_H;
+    TemporalFloat = s->dt / s->ls_H;
     if (TemporalFloat > 1.0f)
         s->Gsmopos = 0.99999f;
     else
         s->Gsmopos = TemporalFloat;
 
-#if IS_IPM
-    TemporalFloat = 1 - Rs_R * dt / Ld_H;
-    if (TemporalFloat < 0.0f)
-        s->Fsmopos_DAxis = 0.0f;
-    else
-        s->Fsmopos_DAxis = TemporalFloat;
+    if(s->motor_type == IPM)
+    {
+        TemporalFloat = 1 - s->rs_ohm * s->dt / s->Ld;
+        if (TemporalFloat < 0.0f)
+            s->Fsmopos_DAxis = 0.0f;
+        else
+            s->Fsmopos_DAxis = TemporalFloat;
 
-    TemporalFloat = dt / Ld_H;
-    if (TemporalFloat > 1.0f)
-        s->Gsmopos_DAxis = 0.99999f;
-    else
-        s->Gsmopos_DAxis = TemporalFloat;
-#endif
+        TemporalFloat = s->dt / s->Ld;
+        if (TemporalFloat > 1.0f)
+            s->Gsmopos_DAxis = 0.99999f;
+        else
+            s->Gsmopos_DAxis = TemporalFloat;
+    }
     /*
     * https://zhuanlan.zhihu.com/p/416224632
     * Kslide should greater than the max value of them
-    * fabsf(-1 * Rs_R * smo_observer.EstIalpha) + smo_observer.Zalpha * SIGN(smo_observer.EstIalpha) - smo_observer.E_rps * _2PI * (Ld_H - Lq_H) * smo_observer.EstIbeta * SIGN(smo_observer.EstIalpha);
-    * fabsf(-1 * Rs_R * smo_observer.EstIbeta) + smo_observer.Zbeta * SIGN(smo_observer.EstIbeta) + smo_observer.E_rps * _2PI * (Ld_H - Lq_H) * smo_observer.EstIalpha * SIGN(smo_observer.EstIbeta);
+    * fabsf(-1 * foc_ctrl.Rs * smo_observer.I_alpha_beta_estimated.Alpha) + smo_observer.Z_alpha_beta.Alpha * SIGN(smo_observer.I_alpha_beta_estimated.Alpha) - smo_observer.E_rps * _2PI * (s->Ld - s->Lq) * smo_observer.I_alpha_beta_estimated.Beta * SIGN(smo_observer.I_alpha_beta_estimated.Alpha);
+    * fabsf(-1 * foc_ctrl.Rs * smo_observer.I_alpha_beta_estimated.Beta) + smo_observer.Z_alpha_beta.Beta * SIGN(smo_observer.I_alpha_beta_estimated.Beta) + smo_observer.E_rps * _2PI * (s->Ld - s->Lq) * smo_observer.I_alpha_beta_estimated.Alpha * SIGN(smo_observer.I_alpha_beta_estimated.Beta);
     */
 
     #ifdef MOTOR_2PP_SERVO
@@ -62,6 +72,16 @@ void SMO_Init(SMO_t *s,float speed_fc,float dt)
     #endif
 
     #ifdef MOTOR_14PP_BLDC
+    s->Kslide = 1;
+    s->MaxErr = 1;
+    #endif
+
+    #ifdef MOTOR_1PP_BLDC_HALL
+    s->Kslide = 1;
+    s->MaxErr = 1;
+    #endif
+
+    #ifdef MOTOR_1PP_BLDC_FAN_SLOW
     s->Kslide = 1;
     s->MaxErr = 1;
     #endif
@@ -85,72 +105,73 @@ void SMO_Init(SMO_t *s,float speed_fc,float dt)
 
 #if SMO_USE_PLL
     s->ThetaOffset = 0;
-    PLL_Init(&s->pll,0.01f,1,speed_fc,dt);
+    PLL_Init(&s->pll,0.01f,1,speed_fc,s->dt);
 #endif
 }
 
-void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
+void SMO_Run(SMO_t *s, FOC_Para_t *para)
 {
-    s->Valpha = foc_para->Ua;
-    s->Vbeta = foc_para->Ub;
-    s->Ialpha = foc_para->Ia;
-    s->Ibeta = foc_para->Ib;
+    memcpy(&s->V_alpha_beta,&para->V_alpha_beta,sizeof(AB_Axis_t));
+    memcpy(&s->I_alpha_beta,&para->I_alpha_beta,sizeof(AB_Axis_t));
 
     // Sliding mode current observer
-#if IS_IPM
-    // https://zhuanlan.zhihu.com/p/421676488 for IPM
-    s->EstIalpha = s->Fsmopos_DAxis * s->EstIalpha + s->Gsmopos_DAxis * (s->Valpha - s->Ealpha - s->Zalpha) - fabsf(s->E_rps) * _2PI * dt * (Ld_H - Lq_H) * s->EstIbeta / Ld_H;
-    s->EstIbeta = s->Fsmopos_DAxis * s->EstIbeta + s->Gsmopos_DAxis * (s->Vbeta - s->Ebeta - s->Zbeta) + fabsf(s->E_rps) * _2PI * dt * (Ld_H - Lq_H) * s->EstIalpha / Ld_H;
-#else
-    // AN1078 for SPM
-    s->EstIalpha = s->Fsmopos * s->EstIalpha + s->Gsmopos * (s->Valpha - s->Ealpha - s->Zalpha);
-    s->EstIbeta = s->Fsmopos * s->EstIbeta + s->Gsmopos * (s->Vbeta - s->Ebeta - s->Zbeta);
-#endif
+    if(s->motor_type == IPM)
+    {
+        // https://zhuanlan.zhihu.com/p/421676488 for IPM
+        s->I_alpha_beta_estimated.Alpha = s->Fsmopos_DAxis * s->I_alpha_beta_estimated.Alpha + s->Gsmopos_DAxis * (s->V_alpha_beta.Alpha - s->E_alpha_beta.Alpha - s->Z_alpha_beta.Alpha) - fabsf(s->E_rps) * _2PI * s->dt * (s->Ld - s->Lq) * s->I_alpha_beta_estimated.Beta / s->Ld;
+        s->I_alpha_beta_estimated.Beta = s->Fsmopos_DAxis * s->I_alpha_beta_estimated.Beta + s->Gsmopos_DAxis * (s->V_alpha_beta.Beta - s->E_alpha_beta.Beta - s->Z_alpha_beta.Beta) + fabsf(s->E_rps) * _2PI * s->dt * (s->Ld - s->Lq) * s->I_alpha_beta_estimated.Alpha / s->Ld;
+    }
+    else
+    {
+        // AN1078 for SPM
+        s->I_alpha_beta_estimated.Alpha = s->Fsmopos * s->I_alpha_beta_estimated.Alpha + s->Gsmopos * (s->V_alpha_beta.Alpha - s->E_alpha_beta.Alpha - s->Z_alpha_beta.Alpha);
+        s->I_alpha_beta_estimated.Beta = s->Fsmopos * s->I_alpha_beta_estimated.Beta + s->Gsmopos * (s->V_alpha_beta.Beta - s->E_alpha_beta.Beta - s->Z_alpha_beta.Beta);
+    }
 
     // Current errors
-    s->IalphaError = s->EstIalpha - s->Ialpha;
-    s->IbetaError = s->EstIbeta - s->Ibeta;
+    s->I_alpha_beta_error.Alpha = s->I_alpha_beta_estimated.Alpha - s->I_alpha_beta.Alpha;
+    s->I_alpha_beta_error.Beta = s->I_alpha_beta_estimated.Beta - s->I_alpha_beta.Beta;
 
     // Sliding control calculator
-    if (fabsf(s->IalphaError) < s->MaxErr)
+    if (fabsf(s->I_alpha_beta_error.Alpha) < s->MaxErr)
     {
-        s->Zalpha = s->Kslide * s->IalphaError / s->MaxErr;
+        s->Z_alpha_beta.Alpha = s->Kslide * s->I_alpha_beta_error.Alpha / s->MaxErr;
     }
     else
     {
-        if (s->IalphaError > 0)
-            s->Zalpha = s->Kslide;
-        // else if (s->IalphaError == 0)
-        //     s->Zalpha = 0;
+        if (s->I_alpha_beta_error.Alpha > 0)
+            s->Z_alpha_beta.Alpha = s->Kslide;
+        // else if (s->I_alpha_beta_error.Alpha == 0)
+        //     s->Z_alpha_beta.Alpha = 0;
         else
-            s->Zalpha = -s->Kslide;
+            s->Z_alpha_beta.Alpha = -s->Kslide;
     }
 
-    if (fabsf(s->IbetaError) < s->MaxErr)
+    if (fabsf(s->I_alpha_beta_error.Beta) < s->MaxErr)
     {
-        s->Zbeta = s->Kslide * s->IbetaError / s->MaxErr;
+        s->Z_alpha_beta.Beta = s->Kslide * s->I_alpha_beta_error.Beta / s->MaxErr;
     }
     else
     {
-        if (s->IbetaError > 0)
-            s->Zbeta = s->Kslide;
-        // else if (s->IbetaError == 0)
-        //     s->Zbeta = 0;
+        if (s->I_alpha_beta_error.Beta > 0)
+            s->Z_alpha_beta.Beta = s->Kslide;
+        // else if (s->I_alpha_beta_error.Beta == 0)
+        //     s->Z_alpha_beta.Beta = 0;
         else
-            s->Zbeta = -s->Kslide;
+            s->Z_alpha_beta.Beta = -s->Kslide;
     }
 
 #if SMO_USE_PLL
     // see https://zhuanlan.zhihu.com/p/652503676
-    // PLL_Run(&s->pll,-s->Zalpha,s->Zbeta);
-    // PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Zalpha,SIGN(s->pll.hz) * s->Zbeta);
+    // PLL_Run(&s->pll,-s->Z_alpha_beta.Alpha,s->Z_alpha_beta.Beta);
+    // PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Z_alpha_beta.Alpha,SIGN(s->pll.hz) * s->Z_alpha_beta.Beta);
 
     /* 
         正反转时PLL结构不同,需加符号函数进行修正
         但由于零速时观测转速震荡导致增加符号函数后速度和角度无法收敛
     */
-    Normalize_PLL_Run(&s->pll,-s->Zalpha,s->Zbeta);
-    // Normalize_PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Zalpha,SIGN(s->pll.hz) * s->Zbeta);
+    Normalize_PLL_Run(&s->pll,-s->Z_alpha_beta.Alpha,s->Z_alpha_beta.Beta);
+    // Normalize_PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Z_alpha_beta.Alpha,SIGN(s->pll.hz) * s->Z_alpha_beta.Beta);
 
     s->E_ang = s->pll.theta;
     s->E_rps = s->pll.hz_f;
@@ -158,47 +179,50 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
 
 #if SMO_USE_ARCTAN
     // Sliding control filter -> BEMF calculator
-    s->Ealpha = s->Ealpha + s->Kslf * (s->Zalpha - s->Ealpha);
-    s->Ebeta = s->Ebeta + s->Kslf * (s->Zbeta - s->Ebeta);
+    s->E_alpha_beta.Alpha = s->E_alpha_beta.Alpha + s->Kslf * (s->Z_alpha_beta.Alpha - s->E_alpha_beta.Alpha);
+    s->E_alpha_beta.Beta = s->E_alpha_beta.Beta + s->Kslf * (s->Z_alpha_beta.Beta - s->E_alpha_beta.Beta);
 
     // New filter used to calculate Position
-    s->EalphaFinal = s->EalphaFinal + s->Kslf * (s->Ealpha - s->EalphaFinal);
-    s->EbetaFinal = s->EbetaFinal + s->Kslf * (s->Ebeta - s->EbetaFinal);
+    s->E_alpha_beta_final.Alpha = s->E_alpha_beta_final.Alpha + s->Kslf * (s->E_alpha_beta.Alpha - s->E_alpha_beta_final.Alpha);
+    s->E_alpha_beta_final.Beta = s->E_alpha_beta_final.Beta + s->Kslf * (s->E_alpha_beta.Beta - s->E_alpha_beta_final.Beta);
 
-    // Rotor angle calculator -> Theta = atan(Ebeta,Ealpha)
+    // Rotor angle calculator -> Theta = atan(E_alpha_beta.Beta,E_alpha_beta.Alpha)
     // electrical angle in radians
     // atan2(double y,double x)  return value :-PI~PI but we need 0~2PI
 
-    /* In theory, there should be a 90° phase lag in the estimated Angle at this time, but there is not, why? */
+    /* 按道理来说此时估算角度应该有90°的相位滞后,实际上并没有. But why? */
     /*
-        Zalpha Zbeta is considered to be both the ab axis component of BEMF
+        这里认为Zalpha Z_alpha_beta.Beta 既是 BEMF 在ab axis分量
 
-        Zalpha  =   -ωe*ψf*sinθe
-        Zbeta   =   ωe*ψf*cosθe
+        Z_alpha_beta.Alpha  =   -ωe*ψf*sinθe
+        Z_alpha_beta.Beta   =   ωe*ψf*cosθe
 
-        Ealpha  =   -ωe*ψf*sin(θe + pi/4) * sqrt(2)/2
-        Ebeta   =   ωe*ψf*cos(θe + pi/4) * sqrt(2)/2
+        E_alpha_beta.Alpha  =   -ωe*ψf*sin(θe + pi/4) * sqrt(2)/2
+        E_alpha_beta.Beta   =   ωe*ψf*cos(θe + pi/4) * sqrt(2)/2
 
-        EalphaFinal = -ωe*ψf*sin(θe + pi/2) * SQ(sqrt(2)/2) = -ωe*ψf*sin(θe + pi/2) / 2
-        EbetaFinal  = ωe*ψf*cos(θe + pi/2) * SQ(sqrt(2)/2)  = ωe*ψf*cos(θe + pi/2) / 2
+        E_alpha_beta_final.Alpha = -ωe*ψf*sin(θe + pi/2) * SQ(sqrt(2)/2) = -ωe*ψf*sin(θe + pi/2) / 2
+        E_alpha_beta_final.Beta  = ωe*ψf*cos(θe + pi/2) * SQ(sqrt(2)/2)  = ωe*ψf*cos(θe + pi/2) / 2
 
-        After the first low-pass filtering, the Ealpha Ebeta lag Zalpha Zbeta 45° amplitude decays to sqrt(2)/2 times
-        After the second low-pass filtering, the EalphaFinal EbetaFinal lag Ealpha Ebeta 45° amplitude decays to sqrt(2)/2 times
-        So EalphaFinal EbetaFinal lags Zalpha Zbeta by 90° and the amplitude decays by 1/2 times
-        And because Zbeta lags Zalpha by 90°, EbetaFinal lags EalphaFinal by 90°
-        So EalphaFinal is in phase with Zbeta and EbetaFinal is in phase with Zalpha
+        
 
-        Because atan(Zbeta,Zalpha) is atan(BEMFbeta,BEMFalpha) 90° ahead of the 90° phase lag caused by two low-pass filters
-        So atan(Ebeta,Ealpha) is in the same phase as θe and no longer needs to compensate for the 90° lag
-        So ThetaOffset = 0
+        经过第一次低通滤波后 E_alpha_beta.Alpha E_alpha_beta.Beta 滞后 Z_alpha_beta.Alpha Z_alpha_beta.Beta 45° 幅值衰减为 sqrt(2)/2 倍
+        经过第二次低通滤波后 E_alpha_beta_final.Alpha E_alpha_beta_final.Beta 滞后 E_alpha_beta.Alpha E_alpha_beta.Beta 45° 幅值衰减为 sqrt(2)/2 倍
+        所以 E_alpha_beta_final.Alpha E_alpha_beta_final.Beta 滞后 Z_alpha_beta.Alpha Z_alpha_beta.Beta 90° 幅值衰减为 1/2 倍
+        又因为 Z_alpha_beta.Beta 滞后 Z_alpha_beta.Alpha 90° , E_alpha_beta_final.Beta 滞后 E_alpha_beta_final.Alpha 90°
+        所以 E_alpha_beta_final.Alpha 与 Z_alpha_beta.Beta 相位相同 E_alpha_beta_final.Beta 与 Z_alpha_beta.Alpha 反相
+
+        因为 atan(Z_alpha_beta.Beta,Z_alpha_beta.Alpha) 即 atan(BEMFbeta,BEMFalpha) 超前 θe 90° 正好与两次低通滤波造成的 90° 相位滞后抵消
+        所以 atan(E_alpha_beta.Beta,E_alpha_beta.Alpha) 与 θe 相位相同 不再需要补偿滞后的90°
+        所以 ThetaOffset = 0 即可
     */
-    s->Theta = Normalize_Angle(atan2f(s->EbetaFinal,s->EalphaFinal) + s->ThetaOffset);
+    s->Theta = Normalize_Angle(atan2f(s->E_alpha_beta_final.Beta,s->E_alpha_beta_final.Alpha) + s->ThetaOffset);
     /*
-        The speed can be estimated by this method.
-        The actual use can indeed change according to the speed, but what is the unit?
-        sqrtf((SQ(s->EalphaFinal) + SQ(s->EbetaFinal)) / SQ(FLUXWb));
+        可用此方法估算转速.
+        实际使用时确实可根据转速变化,但单位是什么?
+        sqrtf((SQ(s->E_alpha_beta_final.Alpha) + SQ(s->E_alpha_beta_final.Beta)) / SQ(foc_ctrl.Flux));
     */
-
+    // 电气转速估算 执行频率为 FOC_SC_LOOP_FREQ
+    // 输出结果为 SPEEDLOOPTIME 内转过的电角度值（弧度制）
     s->AccumThetaCnt++;
     if (s->AccumThetaCnt == FOC_SPEED_LOOP_DIV) // speed loop div
     {
@@ -218,11 +242,13 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
         s->AccumTheta = 0;
     }
 
+    // 电气转速滤波
     s->OmegaFltred = s->OmegaFltred + s->SpeedFilter * (s->Omega - s->OmegaFltred);
     s->erps = s->OmegaFltred * FOC_CC_LOOP_FREQ / FOC_SPEED_LOOP_DIV / _2PI;
 
+    // 反电势滤波系数更新 截止频率等于电频率 此时幅值衰减为0.70710678倍 相位滞后45°
     // filter coef = 2*pi*Erps/fpwm
-    // Omega:rads/SPEEDLOOPTIME
+    // Omega:rads per SPEEDLOOPTIME
     // Erps = s->OmegaFltred * FOC_SC_LOOP_FREQ / _2PI
 
     // s->Kslf = _2PI * fabsf(s->OmegaFltred) * FOC_SC_LOOP_FREQ / _2PI  / FOC_CC_LOOP_FREQ;
@@ -238,6 +264,7 @@ void SMO_Run(SMO_t *s, FOC_Para_t *foc_para)
     s->E_ang = s->Theta;
     s->E_rps = s->erps;
 #endif
+
 
     s->E_rpm = s->E_rps * 60;
 }

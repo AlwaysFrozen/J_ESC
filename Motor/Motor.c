@@ -10,6 +10,8 @@
 
 extern TIM_HandleTypeDef htim1;
 
+uint16_t timer_cnt_arr[10] = {0};
+
 Virtual_Motor_t Virtual_Moto =
 {
     .is_running = 0,
@@ -67,6 +69,12 @@ void Init_Motor(void)
         default:
             break;
     }
+
+    Filter_Rate.phase_voltage_filter_rate = LPF_Alpha_Cal(MAX_LPF_FC,Virtual_Moto.dt);
+    Filter_Rate.phase_current_filter_rate = LPF_Alpha_Cal(MAX_LPF_FC,Virtual_Moto.dt);
+    Filter_Rate.bus_voltage_filter_rate = LPF_Alpha_Cal(100,Virtual_Moto.dt);
+    Filter_Rate.bus_current_filter_rate = LPF_Alpha_Cal(100,Virtual_Moto.dt);
+    Filter_Rate.RPM_filter_rate = LPF_Alpha_Cal(100,Virtual_Moto.dt);
 }
 
 void Stop_Motor(void)

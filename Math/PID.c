@@ -1,177 +1,210 @@
 #include "PID.h"
 #include "My_Math.h"
 
-// #define Differential_Enable
 // #define Kb_Enable
 
-void Current_Loop_PID_Tune(PID_Position_t *pPID,float Wc,float L,float R)
+// https://zhuanlan.zhihu.com/p/146373628
+// https://blog.csdn.net/wanrenqi/article/details/131523107
+void Current_Loop_Parallel_PID_Tune(PID_t *pPID,float Hz,float L,float R)
 {
+    float Wc = Hz * _2PI;
+    #if 0
     pPID->Kp = L * Wc;
     pPID->Ki = R * Wc;
+    #else
+    float b = Wc * pPID->dt;
+    float a = b * (sqrtf(SQ(sinf(b)) + 1) - sinf(b));
+    pPID->Kp = L * a / pPID->dt;
+    pPID->Ki = R * a / pPID->dt;
+    #endif
     pPID->Kb = pPID->Ki * 3;
 }
 
-void PID_Position_Init(PID_Position_t *pPID,float dt,float Kp,float Ki,float Kd,float Kb,float limit_p,float limit_n)
+// https://zhuanlan.zhihu.com/p/454914546
+void Current_Loop_Serial_PID_Tune(PID_t *pPID,float Hz,float L,float R)
 {
-    memset(pPID,0,sizeof(PID_Position_t));
+    float Wc = Hz * _2PI;
+
+    #if 1
+    pPID->Kp = L * Wc;
+    pPID->Ki = R / L;
+    #else
+    pPID->Kp = L * Wc;
+    pPID->Ki = Wc * R / L;
+    #endif
+}
+
+void PID_Init(PID_t *pPID,float dt,float Kp,float Ki,float Kd,float Kb,float limit_max,float limit_min)
+{
+    memset(pPID,0,sizeof(PID_t));
     pPID->dt = dt;
     pPID->Kp = Kp;
     pPID->Ki = Ki;
     pPID->Kd = Kd;
     pPID->Kb = Kb;
-    pPID->limit_positive = limit_p;
-    pPID->limit_negative = limit_n;
+    pPID->limit_max = limit_max;
+    pPID->limit_min = limit_min;
 }
 
-void PID_Position_Reset(PID_Position_t *pPID)
+void PID_Reset(PID_t *pPID)
 {
-    pPID->out_p = 0;
-    pPID->out_i = 0;
-    pPID->out_d = 0;
+    pPID->Proportional = 0;
+    pPID->Integral = 0;
+    pPID->Derivative = 0;
     pPID->out = 0;
-    pPID->err = 0;
-    pPID->err_last = 0;
-    pPID->err_total = 0;
+    pPID->err_k0 = 0;
+    pPID->err_k1 = 0;
+    pPID->err_k2 = 0;
 }
 
-float PID_Position_Run(PID_Position_t *pPID,float target,float feedback)
+void PID_Set_Limit(PID_t *pPID,float limit_max,float limit_min)
 {
-    pPID->err = target - feedback;
-    pPID->out_p = pPID->Kp * pPID->err;
-    pPID->out_i = pPID->Ki * pPID->err_total * pPID->dt;
-    #ifdef Differential_Enable
-    pPID->out_d = pPID->Kd * (pPID->err - pPID->err_last) / pPID->dt;
-    pPID->out_temp = pPID->out_p + pPID->out_i + pPID->out_d;
-    #else
-    pPID->out_temp = pPID->out_p + pPID->out_i;
+    pPID->limit_max = limit_max;
+    pPID->limit_min = limit_min;
+}
+
+void PID_Set_Abs_Limit(PID_t *pPID,float limit)
+{
+    pPID->limit_max = limit;
+    pPID->limit_min = -limit;
+}
+
+float Parallel_PID_Position_Run(PID_t *pPID,float target,float feedback)
+{
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * pPID->err_k0;
+    pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
+    #ifndef Kb_Enable
+    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
     #endif
-
-    if(pPID->out_temp > pPID->limit_positive)
-    {
-        pPID->out = pPID->limit_positive;
-        #ifndef Kb_Enable
-        if(pPID->err < 0)
-        {
-            pPID->err_total += pPID->err;
-        }
-        #endif
-    }
-    else if(pPID->out_temp < pPID->limit_negative) 
-    {
-        pPID->out = pPID->limit_negative;
-        #ifndef Kb_Enable
-        if(pPID->err > 0)
-        {
-            pPID->err_total += pPID->err;
-        }
-        #endif
-    }
-    else
-    {
-        pPID->out = pPID->out_temp;
-        #ifndef Kb_Enable
-        pPID->err_total += pPID->err;
-        #endif
-    }
-
+    pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
+    pPID->out_temp = pPID->Proportional + pPID->Integral + pPID->Derivative;
+    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->saturation = (pPID->out != pPID->out_temp);
     #ifdef Kb_Enable
-    pPID->err_total += (pPID->out - pPID->out_temp) * pPID->Kb + pPID->err;
+    pPID->Integral += ((pPID->out - pPID->out_temp) * pPID->Kb + pPID->err_k0) * pPID->dt;
     #endif
+    pPID->err_k1 = pPID->err_k0;
+    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
 
-float FeedForward_PID_Position_Run(PID_Position_t *pPID,float feedforward,float target,float feedback)
+float FeedForward_Parallel_PID_Position_Run(PID_t *pPID,float feedforward,float target,float feedback)
 {
-    pPID->err = target - feedback;
-    pPID->out_p = pPID->Kp * pPID->err;
-    pPID->out_i = pPID->Ki * pPID->err_total * pPID->dt;
-    #ifdef Differential_Enable
-    pPID->out_d = pPID->Kd * (pPID->err - pPID->err_last) / pPID->dt;
-    pPID->out_temp = feedforward + pPID->out_p + pPID->out_i + pPID->out_d;
-    #else
-    pPID->out_temp = feedforward + pPID->out_p + pPID->out_i;
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * pPID->err_k0;
+    pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
+    #ifndef Kb_Enable
+    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
     #endif
-
-    if(pPID->out_temp > pPID->limit_positive)
-    {
-        pPID->out = pPID->limit_positive;
-        #ifndef Kb_Enable
-        if(pPID->err < 0)
-        {
-            pPID->err_total += pPID->err;
-        }
-        #endif
-    }
-    else if(pPID->out_temp < pPID->limit_negative) 
-    {
-        pPID->out = pPID->limit_negative;
-        #ifndef Kb_Enable
-        if(pPID->err > 0)
-        {
-            pPID->err_total += pPID->err;
-        }
-        #endif
-    }
-    else
-    {
-        pPID->out = pPID->out_temp;
-        #ifndef Kb_Enable
-        pPID->err_total += pPID->err;
-        #endif
-    }
-
+    pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
+    pPID->out_temp = feedforward + pPID->Proportional + pPID->Integral + pPID->Derivative;
+    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->saturation = (pPID->out != pPID->out_temp);
     #ifdef Kb_Enable
-    pPID->err_total += (pPID->out - pPID->out_temp) * pPID->Kb + pPID->err;
+    pPID->Integral += ((pPID->out - pPID->out_temp) * pPID->Kb + pPID->err_k0) * pPID->dt;
     #endif
+    pPID->err_k1 = pPID->err_k0;
+    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
 
-void PID_Delta_Init(PID_Delta_t *pPID,float dt,float Kp,float Ki,float Kd,float limit_p,float limit_n)
+float Serial_PID_Position_Run(PID_t *pPID,float target,float feedback)
 {
-    memset(pPID,0,sizeof(PID_Delta_t));
-    pPID->dt = dt;
-    pPID->Kp = Kp;
-    pPID->Ki = Ki;
-    pPID->Kd = Kd;
-    pPID->limit_positive = limit_p;
-    pPID->limit_negative = limit_n;
-}
-
-void PID_Delta_Reset(PID_Delta_t *pPID)
-{
-    pPID->out_p = 0;
-    pPID->out_i = 0;
-    pPID->out_d = 0;
-    pPID->out = 0;
-    pPID->err_0 = 0;
-    pPID->err_1 = 0;
-    pPID->err_2 = 0;
-}
-
-float PID_Delta_Run(PID_Delta_t *pPID,float target,float feedback)
-{
-    pPID->err_0 = target - feedback;
-    pPID->out_p = pPID->Kp * (pPID->err_0 - pPID->err_1);
-    pPID->out_i = pPID->Ki * pPID->err_0 * pPID->dt;
-    #ifdef Differential_Enable
-    pPID->out_d = pPID->Kd * (pPID->err_0 - 2 * pPID->err_1 - pPID->err_2) / pPID->dt;
-    #endif
-    pPID->err_1 = pPID->err_0;
-    pPID->err_2 = pPID->err_1;
-
-    if(pPID->out_i > pPID->limit_positive) pPID->out_i = pPID->limit_positive;
-    if(pPID->out_i < pPID->limit_negative) pPID->out_i = pPID->limit_negative;
-
-    #ifdef Differential_Enable
-    pPID->out = pPID->out_p + pPID->out_i + pPID->out_d;
-    #else
-    pPID->out = pPID->out_p + pPID->out_i;
-    #endif
-
-    if(pPID->out > pPID->limit_positive) pPID->out = pPID->limit_positive;
-    if(pPID->out < pPID->limit_negative) pPID->out = pPID->limit_negative;
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * pPID->err_k0;
+    pPID->Integral += pPID->Ki * pPID->Proportional * pPID->dt;
+    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
+    pPID->out_temp = pPID->Proportional + pPID->Integral + pPID->Derivative;
+    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->saturation = (pPID->out != pPID->out_temp);
+    pPID->err_k1 = pPID->err_k0;
+    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
+
+float FeedForward_Serial_PID_Position_Run(PID_t *pPID,float feedforward,float target,float feedback)
+{
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * pPID->err_k0;
+    pPID->Integral += pPID->Ki * pPID->Proportional * pPID->dt;
+    pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
+    pPID->out_temp = feedforward + pPID->Proportional + pPID->Integral + pPID->Derivative;
+    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->saturation = (pPID->out != pPID->out_temp);
+    pPID->err_k1 = pPID->err_k0;
+    pPID->err_k2 = pPID->err_k1;
+
+    return pPID->out;
+}
+
+float PID_Delta_Run(PID_t *pPID,float target,float feedback)
+{
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * (pPID->err_k0 - pPID->err_k1);
+    pPID->Integral = pPID->Ki * pPID->err_k0 * pPID->dt;
+    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Derivative = pPID->Kd * (pPID->err_k0 - 2 * pPID->err_k1 + pPID->err_k2) / pPID->dt;
+    pPID->err_k1 = pPID->err_k0;
+    pPID->err_k2 = pPID->err_k1;
+    pPID->out_temp = pPID->Proportional + pPID->Integral + pPID->Derivative;
+    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->saturation = (pPID->out != pPID->out_temp);
+
+    return pPID->out;
+}
+
+float FeedForward_PID_Delta_Run(PID_t *pPID,float feedforward,float target,float feedback)
+{
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * (pPID->err_k0 - pPID->err_k1);
+    pPID->Integral = pPID->Ki * pPID->err_k0 * pPID->dt;
+    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Derivative = pPID->Kd * (pPID->err_k0 - 2 * pPID->err_k1 + pPID->err_k2) / pPID->dt;
+    pPID->err_k1 = pPID->err_k0;
+    pPID->err_k2 = pPID->err_k1;
+    pPID->out_temp = feedforward + pPID->Proportional + pPID->Integral + pPID->Derivative;
+    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->saturation = (pPID->out != pPID->out_temp);
+
+    return pPID->out;
+}
+
+float IP_Run(PID_t *pPID,float target,float feedback)
+{
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * feedback;
+    // pPID->out_temp = -pPID->Proportional;
+    pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
+    pPID->Integral = _constrain(pPID->Integral,pPID->Proportional + pPID->limit_min,pPID->Proportional + pPID->limit_max);
+    // pPID->out_temp += _pPID->Integral;
+    // pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    // pPID->saturation = (pPID->out != pPID->out_temp);
+    pPID->out = pPID->Integral - pPID->Proportional;
+    // pPID->err_k1 = pPID->err_k0;
+    // pPID->err_k2 = pPID->err_k1;
+
+    return pPID->out;
+}
+
+float FeedForward_IP_Run(PID_t *pPID,float target,float feedback,float feedforward)
+{
+    pPID->err_k0 = target - feedback;
+    pPID->Proportional = pPID->Kp * feedback;
+    // pPID->out_temp = -pPID->Proportional;
+    pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
+    pPID->Integral = _constrain(pPID->Integral,pPID->Proportional + pPID->limit_min - feedforward,pPID->Proportional + pPID->limit_max - feedforward);
+    // pPID->out_temp += _pPID->Integral;
+    // pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    // pPID->saturation = (pPID->out != pPID->out_temp);
+    pPID->out = pPID->Integral - pPID->Proportional + feedforward;
+    // pPID->err_k1 = pPID->err_k0;
+    // pPID->err_k2 = pPID->err_k1;
+
+    return pPID->out;
+}
+
