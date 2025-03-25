@@ -13,14 +13,14 @@
 
 
 #define PWM_TIM_BASE_FREQ           (168000000U)
-#define PWN_DEAD_TIME_US            (250)
-#define BOARD_MAX_PHASE_CURRENT     (10)
+#define PWN_DEAD_TIME_NS            (250)
+#define BOARD_MAX_PHASE_CURRENT     (100)
 
 #define BUS_VOLTAGE_RATIO           (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) mv
-#define phase_voltage_V_RATIO       (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) / 1000 v
-#define phase_current_A_RATIO       (0.080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 / 1000 a     //0.5m ohm
-// #define phase_current_A_RATIO       (0.0080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 / 1000 a     //5m ohm
-// #define phase_current_A_RATIO       (0.002014652f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.02 / 1000 a        //20m ohm
+#define PHASE_VOLTAGE_V_RATIO       (0.015091575f) //adc_value / 4095 * 3300 / (2.2 / (2.2 + 39)) / 1000 v
+#define PHASE_CURRENT_A_RATIO       (0.080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.0005 / 1000 a     //0.5m ohm
+// #define PHASE_CURRENT_A_RATIO       (0.0080586081f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.005 / 1000 a     //5m ohm
+// #define PHASE_CURRENT_A_RATIO       (0.002014652f)  //(adc_value - 2048) / 4095 * 3300 / 20 / 0.02 / 1000 a        //20m ohm
 
 #define MIN_LPF_FC                  (200)
 #define MAX_LPF_FC                  (20000)
@@ -91,15 +91,10 @@ typedef struct
 
 typedef struct
 {
-    uint32_t CCR1;
-    uint32_t CCR2;
-    uint32_t CCR3;
-}CCR_t;
-
-typedef struct
-{
-    uint32_t ARR;
-    CCR_t CCR;
+    uint32_t Reload;
+    uint32_t CMP1;
+    uint32_t CMP2;
+    uint32_t CMP3;
 }TIM_t;
 
 typedef struct

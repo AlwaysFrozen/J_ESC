@@ -8,6 +8,7 @@
 #include "FOC_Config.h"
 
 ADC_Cali_t adc_cali = {.ADC_Cali_Value[3] = 2047, .ADC_Cali_Value[4] = 2047, .ADC_Cali_Value[5] = 2047};
+ADC_Cali_t adc_cali_temp = {0};
 
 uint16_t Vbus_ADC = 0;
 float adc_value[6] = {0};
@@ -22,14 +23,17 @@ UVW_Axis_t *p_phase_current_A = &phase_current_A;
 Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
-    ADC_Cali_t adc_cali_temp;
 
     //adc cali
-    MOS_Driver_Disable();
-    osDelay(200);
     memset(&adc_cali_temp,0,sizeof(ADC_Cali_t));
 
-    for(adc_cali_temp.ADC_Cali_Cnt = 0;adc_cali_temp.ADC_Cali_Cnt < 64;adc_cali_temp.ADC_Cali_Cnt++)
+    #if ADC_CALI_IN_IRQ
+    while(adc_cali_temp.ADC_Cali_Cnt < ADC_CALI_TIMES)
+    {
+        osDelay(1);
+    }
+    #else
+    for(adc_cali_temp.ADC_Cali_Cnt = 0;adc_cali_temp.ADC_Cali_Cnt < ADC_CALI_TIMES;adc_cali_temp.ADC_Cali_Cnt++)
     {
         for(uint8_t i = 0;i < 6;i++)
         {
@@ -37,6 +41,7 @@ Sensor_Cali_Err_t Voltage_Current_Sensor_Calibration(void)
         }
         osDelay(1);
     }
+    #endif
     for(uint8_t i = 0;i < 6;i++)
     {
         adc_cali_temp.ADC_Cali_Value[i] /= adc_cali_temp.ADC_Cali_Cnt;

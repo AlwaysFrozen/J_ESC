@@ -71,104 +71,97 @@ void PID_Set_Abs_Limit(PID_t *pPID,float limit)
 
 float Parallel_PID_Position_Run(PID_t *pPID,float target,float feedback)
 {
+    pPID->err_k1 = pPID->err_k0;
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * pPID->err_k0;
     pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
     #ifndef Kb_Enable
-    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Integral = CONSTRAIN(pPID->Integral,pPID->limit_min,pPID->limit_max);
     #endif
     pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
     pPID->out_temp = pPID->Proportional + pPID->Integral + pPID->Derivative;
-    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     pPID->saturation = (pPID->out != pPID->out_temp);
     #ifdef Kb_Enable
     pPID->Integral += ((pPID->out - pPID->out_temp) * pPID->Kb + pPID->err_k0) * pPID->dt;
     #endif
-    pPID->err_k1 = pPID->err_k0;
-    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
 
 float FeedForward_Parallel_PID_Position_Run(PID_t *pPID,float feedforward,float target,float feedback)
 {
+    pPID->err_k1 = pPID->err_k0;
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * pPID->err_k0;
     pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
     #ifndef Kb_Enable
-    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Integral = CONSTRAIN(pPID->Integral,pPID->limit_min,pPID->limit_max);
     #endif
     pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
     pPID->out_temp = feedforward + pPID->Proportional + pPID->Integral + pPID->Derivative;
-    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     pPID->saturation = (pPID->out != pPID->out_temp);
     #ifdef Kb_Enable
     pPID->Integral += ((pPID->out - pPID->out_temp) * pPID->Kb + pPID->err_k0) * pPID->dt;
     #endif
-    pPID->err_k1 = pPID->err_k0;
-    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
 
 float Serial_PID_Position_Run(PID_t *pPID,float target,float feedback)
 {
+    pPID->err_k1 = pPID->err_k0;
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * pPID->err_k0;
     pPID->Integral += pPID->Ki * pPID->Proportional * pPID->dt;
-    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Integral = CONSTRAIN(pPID->Integral,pPID->limit_min,pPID->limit_max);
     pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
     pPID->out_temp = pPID->Proportional + pPID->Integral + pPID->Derivative;
-    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     pPID->saturation = (pPID->out != pPID->out_temp);
-    pPID->err_k1 = pPID->err_k0;
-    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
 
 float FeedForward_Serial_PID_Position_Run(PID_t *pPID,float feedforward,float target,float feedback)
 {
+    pPID->err_k1 = pPID->err_k0;
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * pPID->err_k0;
     pPID->Integral += pPID->Ki * pPID->Proportional * pPID->dt;
     pPID->Derivative = pPID->Kd * (pPID->err_k0 - pPID->err_k1) / pPID->dt;
     pPID->out_temp = feedforward + pPID->Proportional + pPID->Integral + pPID->Derivative;
-    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     pPID->saturation = (pPID->out != pPID->out_temp);
-    pPID->err_k1 = pPID->err_k0;
-    pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
 
 float PID_Delta_Run(PID_t *pPID,float target,float feedback)
 {
+    pPID->err_k2 = pPID->err_k1;
+    pPID->err_k1 = pPID->err_k0;
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * (pPID->err_k0 - pPID->err_k1);
     pPID->Integral = pPID->Ki * pPID->err_k0 * pPID->dt;
-    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
     pPID->Derivative = pPID->Kd * (pPID->err_k0 - 2 * pPID->err_k1 + pPID->err_k2) / pPID->dt;
-    pPID->err_k1 = pPID->err_k0;
-    pPID->err_k2 = pPID->err_k1;
-    pPID->out_temp = pPID->Proportional + pPID->Integral + pPID->Derivative;
-    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
-    pPID->saturation = (pPID->out != pPID->out_temp);
+    pPID->out = pPID->Proportional + pPID->Integral + pPID->Derivative;
 
     return pPID->out;
 }
 
 float FeedForward_PID_Delta_Run(PID_t *pPID,float feedforward,float target,float feedback)
 {
+    pPID->err_k2 = pPID->err_k1;
+    pPID->err_k1 = pPID->err_k0;
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * (pPID->err_k0 - pPID->err_k1);
     pPID->Integral = pPID->Ki * pPID->err_k0 * pPID->dt;
-    pPID->Integral = _constrain(pPID->Integral,pPID->limit_min,pPID->limit_max);
+    pPID->Integral = CONSTRAIN(pPID->Integral,pPID->limit_min,pPID->limit_max);
     pPID->Derivative = pPID->Kd * (pPID->err_k0 - 2 * pPID->err_k1 + pPID->err_k2) / pPID->dt;
-    pPID->err_k1 = pPID->err_k0;
-    pPID->err_k2 = pPID->err_k1;
     pPID->out_temp = feedforward + pPID->Proportional + pPID->Integral + pPID->Derivative;
-    pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     pPID->saturation = (pPID->out != pPID->out_temp);
 
     return pPID->out;
@@ -178,15 +171,12 @@ float IP_Run(PID_t *pPID,float target,float feedback)
 {
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * feedback;
-    // pPID->out_temp = -pPID->Proportional;
     pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
-    pPID->Integral = _constrain(pPID->Integral,pPID->Proportional + pPID->limit_min,pPID->Proportional + pPID->limit_max);
+    pPID->Integral = CONSTRAIN(pPID->Integral,pPID->Proportional + pPID->limit_min,pPID->Proportional + pPID->limit_max);
     // pPID->out_temp += _pPID->Integral;
-    // pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    // pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     // pPID->saturation = (pPID->out != pPID->out_temp);
     pPID->out = pPID->Integral - pPID->Proportional;
-    // pPID->err_k1 = pPID->err_k0;
-    // pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }
@@ -195,15 +185,12 @@ float FeedForward_IP_Run(PID_t *pPID,float target,float feedback,float feedforwa
 {
     pPID->err_k0 = target - feedback;
     pPID->Proportional = pPID->Kp * feedback;
-    // pPID->out_temp = -pPID->Proportional;
     pPID->Integral += pPID->Ki * pPID->err_k0 * pPID->dt;
-    pPID->Integral = _constrain(pPID->Integral,pPID->Proportional + pPID->limit_min - feedforward,pPID->Proportional + pPID->limit_max - feedforward);
+    pPID->Integral = CONSTRAIN(pPID->Integral,pPID->Proportional + pPID->limit_min - feedforward,pPID->Proportional + pPID->limit_max - feedforward);
     // pPID->out_temp += _pPID->Integral;
-    // pPID->out = _constrain(pPID->out_temp,pPID->limit_min,pPID->limit_max);
+    // pPID->out = CONSTRAIN(pPID->out_temp,pPID->limit_min,pPID->limit_max);
     // pPID->saturation = (pPID->out != pPID->out_temp);
     pPID->out = pPID->Integral - pPID->Proportional + feedforward;
-    // pPID->err_k1 = pPID->err_k0;
-    // pPID->err_k2 = pPID->err_k1;
 
     return pPID->out;
 }

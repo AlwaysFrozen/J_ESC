@@ -2,10 +2,7 @@
 #include "My_Math.h"
 #include "FOC.h"
 
-
-SMO_t smo_observer;
-
-void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc)
+void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc,IIR_Filter_t *p_iir)
 {
     //                R * Ts
     // Fsmopos = 1 - --------
@@ -62,8 +59,8 @@ void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc)
     /*
     * https://zhuanlan.zhihu.com/p/416224632
     * Kslide should greater than the max value of them
-    * fabsf(-1 * foc_ctrl.Rs * smo_observer.I_alpha_beta_estimated.Alpha) + smo_observer.Z_alpha_beta.Alpha * SIGN(smo_observer.I_alpha_beta_estimated.Alpha) - smo_observer.E_rps * _2PI * (s->Ld - s->Lq) * smo_observer.I_alpha_beta_estimated.Beta * SIGN(smo_observer.I_alpha_beta_estimated.Alpha);
-    * fabsf(-1 * foc_ctrl.Rs * smo_observer.I_alpha_beta_estimated.Beta) + smo_observer.Z_alpha_beta.Beta * SIGN(smo_observer.I_alpha_beta_estimated.Beta) + smo_observer.E_rps * _2PI * (s->Ld - s->Lq) * smo_observer.I_alpha_beta_estimated.Alpha * SIGN(smo_observer.I_alpha_beta_estimated.Beta);
+    * fabsf(-1 * foc_ctrl.Rs * SMO_observer.I_alpha_beta_estimated.Alpha) + SMO_observer.Z_alpha_beta.Alpha * SIGN_F(SMO_observer.I_alpha_beta_estimated.Alpha) - SMO_observer.E_rps * _2PI * (s->Ld - s->Lq) * SMO_observer.I_alpha_beta_estimated.Beta * SIGN_F(SMO_observer.I_alpha_beta_estimated.Alpha);
+    * fabsf(-1 * foc_ctrl.Rs * SMO_observer.I_alpha_beta_estimated.Beta) + SMO_observer.Z_alpha_beta.Beta * SIGN_F(SMO_observer.I_alpha_beta_estimated.Beta) + SMO_observer.E_rps * _2PI * (s->Ld - s->Lq) * SMO_observer.I_alpha_beta_estimated.Alpha * SIGN_F(SMO_observer.I_alpha_beta_estimated.Beta);
     */
 
     #ifdef MOTOR_2PP_SERVO
@@ -72,6 +69,11 @@ void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc)
     #endif
 
     #ifdef MOTOR_14PP_BLDC
+    s->Kslide = 1;
+    s->MaxErr = 1;
+    #endif
+
+    #ifdef MOTOR_7PP_BLDC
     s->Kslide = 1;
     s->MaxErr = 1;
     #endif
@@ -105,7 +107,7 @@ void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc)
 
 #if SMO_USE_PLL
     s->ThetaOffset = 0;
-    PLL_Init(&s->pll,0.01f,1,speed_fc,s->dt);
+    PLL_Init(&s->pll,0.01f,1,speed_fc,s->dt,p_iir);
 #endif
 }
 
@@ -164,14 +166,14 @@ void SMO_Run(SMO_t *s, FOC_Para_t *para)
 #if SMO_USE_PLL
     // see https://zhuanlan.zhihu.com/p/652503676
     // PLL_Run(&s->pll,-s->Z_alpha_beta.Alpha,s->Z_alpha_beta.Beta);
-    // PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Z_alpha_beta.Alpha,SIGN(s->pll.hz) * s->Z_alpha_beta.Beta);
+    // PLL_Run(&s->pll,SIGN_F(s->pll.hz) * -s->Z_alpha_beta.Alpha,SIGN_F(s->pll.hz) * s->Z_alpha_beta.Beta);
 
     /* 
         正反转时PLL结构不同,需加符号函数进行修正
         但由于零速时观测转速震荡导致增加符号函数后速度和角度无法收敛
     */
     Normalize_PLL_Run(&s->pll,-s->Z_alpha_beta.Alpha,s->Z_alpha_beta.Beta);
-    // Normalize_PLL_Run(&s->pll,SIGN(s->pll.hz) * -s->Z_alpha_beta.Alpha,SIGN(s->pll.hz) * s->Z_alpha_beta.Beta);
+    // Normalize_PLL_Run(&s->pll,SIGN_F(s->pll.hz) * -s->Z_alpha_beta.Alpha,SIGN_F(s->pll.hz) * s->Z_alpha_beta.Beta);
 
     s->E_ang = s->pll.theta;
     s->E_rps = s->pll.hz_f;
@@ -215,7 +217,7 @@ void SMO_Run(SMO_t *s, FOC_Para_t *para)
         所以 atan(E_alpha_beta.Beta,E_alpha_beta.Alpha) 与 θe 相位相同 不再需要补偿滞后的90°
         所以 ThetaOffset = 0 即可
     */
-    s->Theta = Normalize_Angle(atan2f(s->E_alpha_beta_final.Beta,s->E_alpha_beta_final.Alpha) + s->ThetaOffset);
+    s->Theta = Normalize_Rad(atan2f(s->E_alpha_beta_final.Beta,s->E_alpha_beta_final.Alpha) + s->ThetaOffset);
     /*
         可用此方法估算转速.
         实际使用时确实可根据转速变化,但单位是什么?

@@ -1,8 +1,8 @@
 j_esc\list.o: ../Middlewares/Third_Party/FreeRTOS/Source/list.c
-j_esc\list.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+j_esc\list.o: E:\Keil\ARM\ARMCC\Bin\..\include\stdlib.h
 j_esc\list.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-j_esc\list.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
-j_esc\list.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+j_esc\list.o: E:\Keil\ARM\ARMCC\Bin\..\include\stddef.h
+j_esc\list.o: E:\Keil\ARM\ARMCC\Bin\..\include\stdint.h
 j_esc\list.o: ../Core/Inc/FreeRTOSConfig.h
 j_esc\list.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 j_esc\list.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h

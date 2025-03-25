@@ -194,18 +194,11 @@ void ADC_IRQHandler(void)
     {
         timer_cnt_arr[0] = TIM1->ARR * 2 - timer_cnt_arr[0];
     }
-    // GPIOB->BSRR = GPIO_PIN_0;
+    GPIOB->BSRR = GPIO_PIN_0;
 
     ADC1->SR = 0;
     ADC2->SR = 0;
     ADC3->SR = 0;
-
-    // adc_value[0] = ADC1->JDR1;
-    // adc_value[1] = ADC2->JDR1;
-    // adc_value[2] = ADC3->JDR1;
-    // adc_value[3] = ADC1->JDR2;
-    // adc_value[4] = ADC2->JDR2;
-    // adc_value[5] = ADC3->JDR2;
 
     adc_value[0] = ADC1->JDR1;
     adc_value[1] = ADC2->JDR1;
@@ -214,12 +207,23 @@ void ADC_IRQHandler(void)
     adc_value[4] = (ADC2->JDR2 + ADC2->JDR3 + ADC2->JDR4) / 3;
     adc_value[5] = (ADC3->JDR2 + ADC3->JDR3 + ADC3->JDR4) / 3;
 
-    phase_voltage_V.U = adc_value[0] * phase_voltage_V_RATIO;
-    phase_voltage_V.V = adc_value[1] * phase_voltage_V_RATIO;
-    phase_voltage_V.W = adc_value[2] * phase_voltage_V_RATIO;
-    phase_current_A.U = (adc_value[3] - adc_cali.ADC_Cali_Value[3]) * phase_current_A_RATIO;
-    phase_current_A.V = (adc_value[4] - adc_cali.ADC_Cali_Value[4]) * phase_current_A_RATIO;
-    phase_current_A.W = (adc_value[5] - adc_cali.ADC_Cali_Value[5]) * phase_current_A_RATIO;
+    #if ADC_CALI_IN_IRQ
+    if(adc_cali_temp.ADC_Cali_Cnt < ADC_CALI_TIMES)
+    {
+        for(uint8_t i = 0;i < 6;i++)
+        {
+            adc_cali_temp.ADC_Cali_Value[i] += adc_value[i];
+        }
+        adc_cali_temp.ADC_Cali_Cnt++;
+    }
+    #endif
+
+    phase_voltage_V.U = adc_value[0] * PHASE_VOLTAGE_V_RATIO;
+    phase_voltage_V.V = adc_value[1] * PHASE_VOLTAGE_V_RATIO;
+    phase_voltage_V.W = adc_value[2] * PHASE_VOLTAGE_V_RATIO;
+    phase_current_A.U = (adc_value[3] - adc_cali.ADC_Cali_Value[3]) * PHASE_CURRENT_A_RATIO;
+    phase_current_A.V = (adc_value[4] - adc_cali.ADC_Cali_Value[4]) * PHASE_CURRENT_A_RATIO;
+    phase_current_A.W = (adc_value[5] - adc_cali.ADC_Cali_Value[5]) * PHASE_CURRENT_A_RATIO;
 
     // if(TIM1->CCR1 < (TIM1->ARR - 500) && TIM1->CCR2 < (TIM1->ARR - 500))
     // {
@@ -247,40 +251,42 @@ void ADC_IRQHandler(void)
         timer_cnt_arr[1] = TIM1->ARR * 2 - timer_cnt_arr[1];
     }
 
+    #if 0
+    #if 0
+    FirstOrder_LPF_Cal(p_phase_voltage_V->U, phase_voltage_V_f.U, Filter_Rate.phase_voltage_filter_rate);
+    FirstOrder_LPF_Cal(p_phase_voltage_V->V, phase_voltage_V_f.V, Filter_Rate.phase_voltage_filter_rate);
+    FirstOrder_LPF_Cal(p_phase_voltage_V->W, phase_voltage_V_f.W, Filter_Rate.phase_voltage_filter_rate);
+    FirstOrder_LPF_Cal(p_phase_current_A->U, phase_current_A_f.U, Filter_Rate.phase_current_filter_rate);
+    FirstOrder_LPF_Cal(p_phase_current_A->V, phase_current_A_f.V, Filter_Rate.phase_current_filter_rate);
+    FirstOrder_LPF_Cal(p_phase_current_A->W, phase_current_A_f.W, Filter_Rate.phase_current_filter_rate);
+    #else
+    #if 0
+    float fc = Virtual_Moto.electronic_speed_hz * 2;
+    fc = CONSTRAIN(fc,MIN_LPF_FC,MAX_LPF_FC);
+    LPF_UVW_F32(&phase_voltage_V_f,p_phase_voltage_V,MAX_LPF_FC, Virtual_Moto.dt);
+    LPF_UVW_F32(&phase_current_A_f,p_phase_current_A,MAX_LPF_FC, Virtual_Moto.dt);
+    #else
+    LPF_UVW_F32(&phase_voltage_V_f, p_phase_voltage_V, MAX_LPF_FC, Virtual_Moto.dt);
+    LPF_UVW_F32(&phase_current_A_f, p_phase_current_A, MAX_LPF_FC, Virtual_Moto.dt);
+    #endif
+    #endif
+    #else
     memcpy(&phase_voltage_V_f,p_phase_voltage_V,sizeof(phase_voltage_V_f));
     memcpy(&phase_current_A_f,p_phase_current_A,sizeof(phase_current_A_f));
+    #endif
 
-    // #if 0
-    // FirstOrder_LPF_Cacl(p_phase_voltage_V->U, phase_voltage_V_f.U, Filter_Rate.phase_voltage_filter_rate);
-    // FirstOrder_LPF_Cacl(p_phase_voltage_V->V, phase_voltage_V_f.V, Filter_Rate.phase_voltage_filter_rate);
-    // FirstOrder_LPF_Cacl(p_phase_voltage_V->W, phase_voltage_V_f.W, Filter_Rate.phase_voltage_filter_rate);
-    // FirstOrder_LPF_Cacl(p_phase_current_A->U, phase_current_A_f.U, Filter_Rate.phase_current_filter_rate);
-    // FirstOrder_LPF_Cacl(p_phase_current_A->V, phase_current_A_f.V, Filter_Rate.phase_current_filter_rate);
-    // FirstOrder_LPF_Cacl(p_phase_current_A->W, phase_current_A_f.W, Filter_Rate.phase_current_filter_rate);
-    // #else
-    // #if 0
-    // float fc = Virtual_Moto.electronic_speed_hz * 2;
-    // fc = _constrain(fc,MIN_LPF_FC,MAX_LPF_FC);
-    // LPF_UVW_F32(&phase_voltage_V_f,p_phase_voltage_V,MAX_LPF_FC, Virtual_Moto.dt);
-    // LPF_UVW_F32(&phase_current_A_f,p_phase_current_A,MAX_LPF_FC, Virtual_Moto.dt);
-    // #else
-    // LPF_UVW_F32(&phase_voltage_V_f, p_phase_voltage_V, MAX_LPF_FC, Virtual_Moto.dt);
-    // LPF_UVW_F32(&phase_current_A_f, p_phase_current_A, MAX_LPF_FC, Virtual_Moto.dt);
-    // #endif
-    // #endif
-
-    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1,DAC_ALIGN_12B_R,_constrain(2048 + phase_current_A.U / 4,0,4095));
-    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2,DAC_ALIGN_12B_R,_constrain(2048 + phase_current_A_f.U / 4,0,4095));
+    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1,DAC_ALIGN_12B_R,CONSTRAIN(2048 + phase_current_A.U / 4,0,4095));
+    // HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2,DAC_ALIGN_12B_R,CONSTRAIN(2048 + phase_current_A_f.U / 4,0,4095));
 
     Virtual_Moto.V_bus_v = Vbus_ADC * BUS_VOLTAGE_RATIO;
-    FirstOrder_LPF_Cacl(Virtual_Moto.V_bus_v, Virtual_Moto.V_bus_v_f, Filter_Rate.bus_voltage_filter_rate);
+    FirstOrder_LPF_Cal(Virtual_Moto.V_bus_v, Virtual_Moto.V_bus_v_f, Filter_Rate.bus_voltage_filter_rate);
 
     timer_cnt_arr[2] = TIM1->CNT;
     if((TIM1->CR1 & 0x10) == 0x10)
     {
         timer_cnt_arr[2] = TIM1->ARR * 2 - timer_cnt_arr[2];
     }
-    // GPIOB->BSRR = GPIO_PIN_1;
+    GPIOB->BSRR = GPIO_PIN_1;
 
     if (sensor_calibration_status == Sensor_Calibrated)
     {
@@ -313,8 +319,8 @@ void ADC_IRQHandler(void)
     {
         timer_cnt_arr[3] = TIM1->ARR * 2 - timer_cnt_arr[3];
     }
-    // GPIOB->BSRR = (uint32_t)GPIO_PIN_1 << 16U;
-    // GPIOB->BSRR = (uint32_t)GPIO_PIN_0 << 16U;
+    GPIOB->BSRR = (uint32_t)GPIO_PIN_1 << 16U;
+    GPIOB->BSRR = (uint32_t)GPIO_PIN_0 << 16U;
 }
 
 /**
@@ -323,12 +329,12 @@ void ADC_IRQHandler(void)
 void TIM1_UP_TIM10_IRQHandler(void)
 {
     /* USER CODE BEGIN TIM1_UP_TIM10_IRQn 0 */
-    GPIOB->BSRR = GPIO_PIN_1;
+    // GPIOB->BSRR = GPIO_PIN_1;
     /* USER CODE END TIM1_UP_TIM10_IRQn 0 */
     // HAL_TIM_IRQHandler(&htim1);
     TIM1->SR &= ~0x01;
     /* USER CODE BEGIN TIM1_UP_TIM10_IRQn 1 */
-    GPIOB->BSRR = (uint32_t)GPIO_PIN_1 << 16U;
+    // GPIOB->BSRR = (uint32_t)GPIO_PIN_1 << 16U;
     /* USER CODE END TIM1_UP_TIM10_IRQn 1 */
 }
 

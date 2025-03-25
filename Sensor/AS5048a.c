@@ -86,7 +86,7 @@ void AS5048_Read_M_Ang(void)
     {
         AS5048_para.raw_value = data;
     }
-    AS5048_para.m_angle = Normalize_Angle((float)AS5048_para.raw_value / AS5048_MAX_VALUE * _2PI - AS5048_para.m_angle_offset);
+    AS5048_para.m_angle = Normalize_Rad((float)AS5048_para.raw_value / AS5048_MAX_VALUE * _2PI - AS5048_para.m_angle_offset);
     if (AS5048_para.reverse)
     {
         AS5048_para.m_angle = _2PI - AS5048_para.m_angle;

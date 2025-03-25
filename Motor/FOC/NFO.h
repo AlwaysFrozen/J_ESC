@@ -14,7 +14,7 @@ typedef struct _OBSERVER_Obj_
     
     float rs_ohm;
     float ls_H;
-    float l_diff;
+    float l_diff_half;
     float flux_wb;
     float dt;
     float gain;
@@ -30,11 +30,8 @@ typedef struct _OBSERVER_Obj_
     float E_ang;
     float E_rps;
     float E_rpm;
-} FLO_t;
+} NFO_t;
 
-extern FLO_t flo_observer;
-
-
-void FLO_Init(FOC_CONTROL_t *ctrl,FLO_t *obs,float speed_fc);
-void FLO_Run(FLO_t *obs,FOC_Para_t *para);
+void NFO_Init(FOC_CONTROL_t *ctrl,NFO_t *obs,float speed_fc,IIR_Filter_t *p_iir);
+void NFO_Run(NFO_t *obs,FOC_Para_t *para);
 #endif

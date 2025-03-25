@@ -1035,8 +1035,8 @@ HAL_StatusTypeDef HAL_RTCEx_PollForAlarmBEvent(RTC_HandleTypeDef *hrtc, uint32_t
 
 #define IS_RTC_WAKEUP_COUNTER(COUNTER)  ((COUNTER) <= RTC_WUTR_WUT)
 
-#define IS_RTC_CALIB_SIGN(SIGN) (((SIGN) == RTC_CALIBSIGN_POSITIVE) || \
-                                 ((SIGN) == RTC_CALIBSIGN_NEGATIVE))
+#define IS_RTC_CALIB_SIGN(SIGN_F) (((SIGN_F) == RTC_CALIBSIGN_POSITIVE) || \
+                                 ((SIGN_F) == RTC_CALIBSIGN_NEGATIVE))
 
 #define IS_RTC_CALIB_VALUE(VALUE) ((VALUE) < 0x20U)
 

@@ -1,7 +1,7 @@
 j_esc\freertos.o: ../Core/Src/freertos.c
 j_esc\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
-j_esc\freertos.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
-j_esc\freertos.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+j_esc\freertos.o: E:\Keil\ARM\ARMCC\Bin\..\include\stddef.h
+j_esc\freertos.o: E:\Keil\ARM\ARMCC\Bin\..\include\stdint.h
 j_esc\freertos.o: ../Core/Inc/FreeRTOSConfig.h
 j_esc\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
 j_esc\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
@@ -48,3 +48,6 @@ j_esc\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 j_esc\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd.h
 j_esc\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h
 j_esc\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h
+j_esc\freertos.o: E:\Keil\ARM\ARMCC\Bin\..\include\string.h
+j_esc\freertos.o: E:\Keil\ARM\ARMCC\Bin\..\include\stdio.h
+j_esc\freertos.o: E:\Keil\ARM\ARMCC\Bin\..\include\stdlib.h

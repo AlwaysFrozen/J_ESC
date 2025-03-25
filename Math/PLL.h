@@ -5,6 +5,8 @@
 #include "stdint.h"
 #include "stdbool.h"
 #include "string.h"
+#include "Filter.h"
+
 
 typedef struct
 {
@@ -12,17 +14,21 @@ typedef struct
     float Ki;
     float err;
     float integral;
-    float out;
     float fc;
     float dt;
-    float alpha;
+    float wc;// rads/s
+    float wc_f;// rads/s
     float hz;
     float hz_f;
     float theta;
     float theta_unlimit;
+
+    float alpha;
+    IIR_Filter_t *p_iir;
+
 } PLL_t;
 
-void PLL_Init(PLL_t *pPLL,float Kp,float Ki,float fc,float dt);
+void PLL_Init(PLL_t *pPLL,float Kp,float Ki,float fc,float dt,IIR_Filter_t *p_iir);
 void PLL_Run(PLL_t *pPLL,float sin_value,float cos_value);
 void Normalize_PLL_Run(PLL_t *pPLL,float sin_value,float cos_value);
 

@@ -53,12 +53,12 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
 
-    tim.ARR = TIM1->ARR;
+    tim.Reload = TIM1->ARR;
     // set current to 0
     SVPWM_DQ(&V_dq,DEG_TO_RAD(0),&tim);
-    TIM1->CCR1 = tim.CCR.CCR1;
-    TIM1->CCR2 = tim.CCR.CCR2;
-    TIM1->CCR3 = tim.CCR.CCR3;
+    TIM1->CCR1 = tim.CMP1;
+    TIM1->CCR2 = tim.CMP2;
+    TIM1->CCR3 = tim.CMP3;
     while (I_dq.D > 0.01f)
     {
         Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
@@ -72,9 +72,9 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
         Park_Transmission(&I_alpha_beta, &I_dq, DEG_TO_RAD(e_degree));
         SVPWM_DQ(&V_dq,DEG_TO_RAD(e_degree),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
 
         V_dq.D += 0.001f;
         if (V_dq.D > foc_ctrl.modulation_ratio)
@@ -102,16 +102,16 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         temp += raw_data[i];
     }
     temp /= READ_TIMES - IGNORE_TIMES * 2;
-    temp_m_ang[0] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
+    temp_m_ang[0] = Normalize_Rad(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[0] = temp_m_ang[0] / _PI_2;
     temp = 0;
     // 1
     for (int16_t i = 0; i < move_e_degree; i++)
     {
         SVPWM_DQ(&V_dq,DEG_TO_RAD(++e_degree),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
 
         osDelay(10);
     }
@@ -130,16 +130,16 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         temp += raw_data[i];
     }
     temp /= READ_TIMES - IGNORE_TIMES * 2;
-    temp_m_ang[1] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
+    temp_m_ang[1] = Normalize_Rad(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[1] = temp_m_ang[1] / _PI_2;
     temp = 0;
     // 2
     for (int16_t i = move_e_degree; i > 0; i--)
     {
         SVPWM_DQ(&V_dq,DEG_TO_RAD(--e_degree),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
         osDelay(10);
     }
     osDelay(500);
@@ -157,16 +157,16 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         temp += raw_data[i];
     }
     temp /= READ_TIMES - IGNORE_TIMES * 2;
-    temp_m_ang[2] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
+    temp_m_ang[2] = Normalize_Rad(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[2] = temp_m_ang[2] / _PI_2;
     temp = 0;
     // 3
     for (int16_t i = move_e_degree; i > 0; i--)
     {
         SVPWM_DQ(&V_dq,DEG_TO_RAD(--e_degree),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
         osDelay(10);
     }
     osDelay(500);
@@ -184,16 +184,16 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         temp += raw_data[i];
     }
     temp /= READ_TIMES - IGNORE_TIMES * 2;
-    temp_m_ang[3] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
+    temp_m_ang[3] = Normalize_Rad(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[3] = temp_m_ang[3] / _PI_2;
     temp = 0;
     // 4
     for (int16_t i = 0; i < move_e_degree; i++)
     {
         SVPWM_DQ(&V_dq,DEG_TO_RAD(++e_degree),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
         osDelay(10);
     }
     osDelay(500);
@@ -211,13 +211,13 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         temp += raw_data[i];
     }
     temp /= READ_TIMES - IGNORE_TIMES * 2;
-    temp_m_ang[4] = Normalize_Angle(temp / AS5048_MAX_VALUE * _2PI);
+    temp_m_ang[4] = Normalize_Rad(temp / AS5048_MAX_VALUE * _2PI);
     quadrant[4] = temp_m_ang[4] / _PI_2;
     temp = 0;
 
     temp = DEG_TO_RAD(MAX_ERR_DEGREE);
 
-    if (ABS_Angle_Delta(temp_m_ang[0], temp_m_ang[1]) < temp / 2)
+    if (ABS_Rad_Diff(temp_m_ang[0], temp_m_ang[1]) < temp / 2)
     {
         err |= Sensor_Cali_Err_NO_MOVE;
     }
@@ -246,7 +246,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
     //     }
     // }
 
-    if(Angle_Delta_Dir(temp_m_ang[0],temp_m_ang[1]) == 1)
+    if(Rad_Diff_Dir(temp_m_ang[0],temp_m_ang[1]) == 1)
     {
         AS5048_para.reverse = 0;
     }
@@ -255,7 +255,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
         AS5048_para.reverse = 1;
     }
 
-    if (ABS_Angle_Delta(temp_m_ang[0], temp_m_ang[2]) < temp && ABS_Angle_Delta(temp_m_ang[2], temp_m_ang[4]) < temp && ABS_Angle_Delta(temp_m_ang[0], temp_m_ang[4]) < temp)
+    if (ABS_Rad_Diff(temp_m_ang[0], temp_m_ang[2]) < temp && ABS_Rad_Diff(temp_m_ang[2], temp_m_ang[4]) < temp && ABS_Rad_Diff(temp_m_ang[0], temp_m_ang[4]) < temp)
     {
         /* 三次测量取平均值 */
         temp_m_ang[5] = temp_m_ang[0] + temp_m_ang[2] + temp_m_ang[4];
@@ -275,7 +275,7 @@ Sensor_Cali_Err_t Encoder_Calibration(float current_limit)
                 temp_m_ang[5] += _2PI;
             }
         }
-        temp_m_ang[5] = Normalize_Angle(temp_m_ang[5] / 3);
+        temp_m_ang[5] = Normalize_Rad(temp_m_ang[5] / 3);
         if(AS5048_para.reverse)
         {
             AS5048_para.m_angle_offset = temp_m_ang[5] + DEG_TO_RAD(e_degree) / foc_ctrl.pole_pairs;

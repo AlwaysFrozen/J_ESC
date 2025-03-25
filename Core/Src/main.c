@@ -59,7 +59,6 @@ SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi3;
 
 TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 DMA_HandleTypeDef hdma_tim4_ch1;
@@ -117,7 +116,6 @@ static void MX_DAC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_TIM1_Init(void);
-static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 void StartDefaultTask(void *argument);
@@ -237,7 +235,6 @@ int main(void)
     MX_ADC3_Init();
     // PWM output
     MX_TIM1_Init();
-    MX_TIM2_Init();
     #ifdef HALL_TIM_CAPTURE
     MX_TIM3_Init();
     HAL_TIMEx_HallSensor_Start_IT(&htim3);
@@ -268,7 +265,7 @@ int main(void)
     // Init_Motor();
 
     /* USER CODE BEGIN 2 */
-    #ifndef PWN_ADC_DEBUG
+    #ifndef PWM_ADC_DEBUG
     MOS_Driver_Disable();
     #else
     MOS_Driver_Enable();
@@ -281,16 +278,10 @@ int main(void)
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
-
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
     HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
     HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
     HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
-
-    #ifdef ADC_TRIGER_SOURCE_TIM1_CC4
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-    #endif
-
-    HAL_TIM_Base_Start(&htim2);
 
     HAL_ADCEx_InjectedStart_IT(&hadc1);
     HAL_ADC_Start(&hadc2);
@@ -850,7 +841,6 @@ static void MX_TIM1_Init(void)
     /* USER CODE END TIM1_Init 0 */
 
     TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-    TIM_SlaveConfigTypeDef sSlaveConfig = {0};
     TIM_MasterConfigTypeDef sMasterConfig = {0};
     TIM_OC_InitTypeDef sConfigOC = {0};
     TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -879,12 +869,6 @@ static void MX_TIM1_Init(void)
     {
         Error_Handler();
     }
-    sSlaveConfig.SlaveMode = TIM_SLAVEMODE_DISABLE;
-    sSlaveConfig.InputTrigger = TIM_TS_ITR2;
-    if (HAL_TIM_SlaveConfigSynchro(&htim1, &sSlaveConfig) != HAL_OK)
-    {
-        Error_Handler();
-    }
     sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
     sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
     if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
@@ -902,26 +886,23 @@ static void MX_TIM1_Init(void)
     {
         Error_Handler();
     }
-    // __HAL_TIM_DISABLE_OCxPRELOAD(&htim1, TIM_CHANNEL_1);
     if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
     {
         Error_Handler();
     }
-    // __HAL_TIM_DISABLE_OCxPRELOAD(&htim1, TIM_CHANNEL_2);
     if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
     {
         Error_Handler();
     }
-    // __HAL_TIM_DISABLE_OCxPRELOAD(&htim1, TIM_CHANNEL_3);
+    sConfigOC.Pulse = 1;
     if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
     {
         Error_Handler();
     }
-    // __HAL_TIM_DISABLE_OCxPRELOAD(&htim1, TIM_CHANNEL_4);
     sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
     sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
     sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-    sBreakDeadTimeConfig.DeadTime = Dead_Time_Cal(PWM_TIM_BASE_FREQ,1,PWN_DEAD_TIME_US);
+    sBreakDeadTimeConfig.DeadTime = Dead_Time_Cal(PWM_TIM_BASE_FREQ,1,PWN_DEAD_TIME_NS);
     sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
     sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
     sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_ENABLE;
@@ -935,57 +916,6 @@ static void MX_TIM1_Init(void)
     HAL_TIM_MspPostInit(&htim1);
 }
 
-/**
-  * @brief TIM2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM2_Init(void)
-{
-
-  /* USER CODE BEGIN TIM2_Init 0 */
-
-  /* USER CODE END TIM2_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM2_Init 1 */
-
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 8400;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_RESET;
-  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
-  if (HAL_TIM_SlaveConfigSynchro(&htim2, &sSlaveConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM2_Init 2 */
-
-  /* USER CODE END TIM2_Init 2 */
-
-}
 /**
  * @brief TIM4 Initialization Function
  * @param None
@@ -1138,7 +1068,7 @@ void StartDefaultTask(void *argument)
 {
     MX_USB_DEVICE_Init();
     
-    #ifndef PWN_ADC_DEBUG
+    #ifndef PWM_ADC_DEBUG
     SensorTaskHandle = osThreadNew(SensorTask, NULL, &SensorTask_attributes);
     ScheduleTaskHandle = osThreadNew(ScheduleTask, NULL, &ScheduleTask_attributes);
     VCPTaskHandle = osThreadNew(VCPTask, NULL, &VCPTask_attributes);
@@ -1258,7 +1188,7 @@ void VOFA_Cmd_Analyze(const char *buffer,uint32_t len)
     }
     else if(strncmp(buffer,cmd_id,sizeof(cmd_id) - 1) == 0)
     {
-        foc_para.I_dq_target.D = strtod(buffer + sizeof(cmd_id) - 1,NULL);
+        foc_para.I_dq_target.D = -strtod(buffer + sizeof(cmd_id) - 1,NULL);
     }
     else if(strncmp(buffer,cmd_spd,sizeof(cmd_spd) - 1) == 0)
     {

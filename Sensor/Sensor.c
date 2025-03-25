@@ -27,18 +27,8 @@ Sensor_Cali_Err_t Sensor_Calibration(float current_limit)
 {
     Sensor_Cali_Err_t err = Sensor_Cali_Err_NONE;
 
-    // TIM set
-    TIM1->CCER &= ~0x555;
-    // enable preload
-    TIM1->CR1 |= 0x80;
-    TIM1->CCMR1 |= 0x808;
-    TIM1->CCMR2 |= 0x08;
-    TIM1->ARR = PWM_TIM_BASE_FREQ / 2 / (20 * 1000);
-    #ifdef ADC_SAMPLE_HIGH_SIDE
-    TIM1->CCR4 = 1;
-    #else
-    TIM1->CCR4 = TIM1->ARR - 1;
-    #endif
+    MOS_Driver_Disable();
+    osDelay(10);
 
     err |= Voltage_Current_Sensor_Calibration();
 

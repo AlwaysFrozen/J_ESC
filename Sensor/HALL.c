@@ -44,15 +44,20 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
     AB_Axis_t I_alpha_beta;
     TIM_t tim;
 
+    memset(&V_dq,0,sizeof(V_dq));
+    memset(&I_dq,0,sizeof(I_dq));
+    memset(&I_alpha_beta,0,sizeof(I_alpha_beta));
+    memset(&tim,0,sizeof(tim));
+
     // enable output
     MOS_Driver_Enable();
     TIM1->CCER |= 0x555;
-    tim.ARR = TIM1->ARR;
+    tim.Reload = TIM1->ARR;
     // set current to 0
     SVPWM_DQ(&V_dq,DEG_TO_RAD(0),&tim);
-    TIM1->CCR1 = tim.CCR.CCR1;
-    TIM1->CCR2 = tim.CCR.CCR2;
-    TIM1->CCR3 = tim.CCR.CCR3;
+    TIM1->CCR1 = tim.CMP1;
+    TIM1->CCR2 = tim.CMP2;
+    TIM1->CCR3 = tim.CMP3;
     while (I_dq.D > 0.01f)
     {
         Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
@@ -66,9 +71,9 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
         Clarke_Transmission(&phase_current_A_f, &I_alpha_beta);
         Park_Transmission(&I_alpha_beta, &I_dq, DEG_TO_RAD(0));
         SVPWM_DQ(&V_dq,DEG_TO_RAD(0),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
 
         V_dq.D += 0.001f;
         if (V_dq.D > foc_ctrl.modulation_ratio)
@@ -102,9 +107,9 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
             break;
         }
         SVPWM_DQ(&V_dq,DEG_TO_RAD(vector_deg++),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -115,7 +120,7 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
         {
             Hall_Sensor.hall_index_last = Hall_Sensor.hall_index;
             hall_deg_ccw[0][edge_cnt[0]] = Hall_Sensor.hall_index;
-            hall_deg_ccw[1][edge_cnt[0]] = (int32_t)Normalize_Angle_Degree(vector_deg) % 360;
+            hall_deg_ccw[1][edge_cnt[0]] = (int32_t)Normalize_Angle(vector_deg) % 360;
             edge_cnt[0]++;
         }
     }
@@ -129,9 +134,9 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
             break;
         }
         SVPWM_DQ(&V_dq,DEG_TO_RAD(vector_deg--),&tim);
-        TIM1->CCR1 = tim.CCR.CCR1;
-        TIM1->CCR2 = tim.CCR.CCR2;
-        TIM1->CCR3 = tim.CCR.CCR3;
+        TIM1->CCR1 = tim.CMP1;
+        TIM1->CCR2 = tim.CMP2;
+        TIM1->CCR3 = tim.CMP3;
         osDelay(2);
 
         Hall_Sensor.hall_queue_f[0] = HALL_A_READ();
@@ -142,7 +147,7 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
         {
             Hall_Sensor.hall_index_last = Hall_Sensor.hall_index;
             hall_deg_cw[0][edge_cnt[1]] = Hall_Sensor.hall_index;
-            hall_deg_cw[1][edge_cnt[1]++] = (int32_t)Normalize_Angle_Degree(vector_deg) % 360;
+            hall_deg_cw[1][edge_cnt[1]++] = (int32_t)Normalize_Angle(vector_deg) % 360;
         }
     }
 
@@ -177,11 +182,11 @@ Sensor_Cali_Err_t HALL_Calibration(float current_limit)
 
     for(uint8_t i = 0;i < 8;i++)
     {
-        hall_deg_calibrated[i] = Normalize_Angle_Degree(Angle_Average_Degree(hall_deg_avg_ccw[i],hall_deg_avg_cw[i]));
+        hall_deg_calibrated[i] = Normalize_Angle(Angle_Average(hall_deg_avg_ccw[i],hall_deg_avg_cw[i]));
     }
     for(uint8_t i = 0;i < 8;i++)
     {
-        hall_rad_calibrated[i] = Normalize_Angle(Angle_Average(DEG_TO_RAD(hall_deg_avg_ccw[i]),DEG_TO_RAD(hall_deg_avg_cw[i])));
+        hall_rad_calibrated[i] = Normalize_Rad(Rad_Average(DEG_TO_RAD(hall_deg_avg_ccw[i]),DEG_TO_RAD(hall_deg_avg_cw[i])));
     }
 
     uint8_t index_cnt = 0;

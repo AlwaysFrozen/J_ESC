@@ -63,15 +63,13 @@ typedef struct
     /* voltage and current in D-Q axis */
     DQ_Axis_t V_dq;
     DQ_Axis_t I_dq;
-    DQ_Axis_t I_dq_filtered;
     /* PID output */
     DQ_Axis_t V_dq_feed_forward;
     DQ_Axis_t V_dq_out;
     AB_Axis_t V_alpha_beta_out;
-    /* PID output in rate */
-    DQ_Axis_t V_dq_feed_forward_rate;
-    DQ_Axis_t V_dq_rate;
-    AB_Axis_t V_alpha_beta_rate;
+    float V_out;
+    float V_out_f;
+    float V_out_rate;
     /* PID reference */
     DQ_Axis_t I_dq_target;
     float Speed_target;
@@ -188,14 +186,29 @@ typedef struct
     uint8_t deadtime_compensate_enable;
     uint8_t MTPA_enable;
     uint8_t FW_enable;
+    float FW_throttle;
     uint8_t MTPV_enable;
 }FOC_CONTROL_t;
 
+typedef enum
+{
+    HFI_Pole_Detect_Wait_Theta_Stable,
+    HFI_Pole_Detect_Positive_Pluse,
+    HFI_Pole_Detect_Wait_Current_Stable,
+    HFI_Pole_Detect_Negative_Pluse,
+    HFI_Pole_Detect_Done,
+    HFI_Pole_Detect_Retry,
+}HFI_Pole_Detect_State_t;
+
 typedef struct
 {
-    uint16_t HFI_Freq;
-    uint16_t HFI_Polarity_judgment_ms;
-    float HFI_Ud_amplitude;
+    uint32_t HFI_high_freq;
+    float HFI_high_amplitude;
+
+    float HFI_pole_detect_amplitude;
+    uint32_t HFI_pole_detect_delay_us;
+    uint32_t HFI_pole_detect_pluse_us;
+    uint32_t HFI_pole_detect_pluse_interval_us;
 
     float HFI_switch_on_speed;
     float HFI_switch_off_speed;
@@ -203,20 +216,34 @@ typedef struct
 
 typedef struct
 {
-    uint32_t HFI_DIV_cnt;
-    uint32_t HFI_NS_Polarity_judgment_cnt;
+    uint32_t HFI_high_freq_cnt;
+    int32_t HFI_high_freq_sign;
 
-    float HFI_Ud_sign;
+    HFI_Pole_Detect_State_t HFI_pole_detect_status;
+    int32_t HFI_pole_detect_sign;
+    uint32_t HFI_pole_detect_delay_cnt;
+    uint32_t HFI_pole_detect_pluse_cnt;
+    uint32_t HFI_pole_detect_pluse_interval_cnt;
+    uint32_t HFI_pole_detect_cnt;
 
-    float HFI_Ia_now;
-    float HFI_Ia_last;
-    float HFI_Ib_now;
-    float HFI_Ib_last;
+    float HFI_Ud_excitation;
 
-    float HFI_Ia_base;
-    float HFI_Ia_delta;
-    float HFI_Ib_base;
-    float HFI_Ib_delta;
+    DQ_Axis_t Udq_out;
+    AB_Axis_t Uab_out;
+
+    AB_Axis_t Uab_k0;
+    AB_Axis_t Uab_k1;
+    AB_Axis_t Uab_k2;
+
+    AB_Axis_t Uab_base;
+    AB_Axis_t Uab_response;
+
+    AB_Axis_t Iab_k0;
+    AB_Axis_t Iab_k1;
+    AB_Axis_t Iab_k2;
+
+    AB_Axis_t Iab_base;
+    AB_Axis_t Iab_response;
 
     float HFI_Id_P;
     float HFI_Id_N;
@@ -233,7 +260,7 @@ extern PID_t Speed_PID;
 extern HFI_CONTROL_t HFI_ctrl;
 extern HFI_RUN_t HFI_run;
 
-void SVPWM_Update(FOC_CONTROL_t *ctrl,FOC_RUN_t *run_parameters,FOC_Para_t *parameters);
+void SVPWM_Update(FOC_CONTROL_t *ctrl,FOC_RUN_t *run_parameters,FOC_Para_t *parameters,HFI_RUN_t *hfi_parameters);
 
 void FOC_Process(void);
 void Reset_Machine_Angle_To_Zero(void);

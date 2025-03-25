@@ -52,9 +52,12 @@ typedef struct
     uint8_t befm_index_last;
     uint8_t step_index;
     uint8_t step_index_last;
+    uint8_t override_step;
     /* befm process */
     float virtual_mid;
     float virtual_mid_f;
+    uint32_t rapid_demagnetization_cnt;
+    uint32_t rapid_demagnetization_cnt_ref;
     uint32_t befm_detect_delay_cnt;
     uint32_t befm_detect_delay_cnt_ref;
     uint32_t befm_queue[3];
@@ -122,6 +125,8 @@ typedef struct
     uint16_t start_max_mse;
     /* sensorless run config */
     uint8_t rapid_demagnetization_enable;
+    uint8_t rapid_demagnetization_angle;
+    uint8_t forced_commutation_enable;
     uint8_t befm_detect_delay_angle;
     uint8_t befm_filter_angle;
     /* stall protect */

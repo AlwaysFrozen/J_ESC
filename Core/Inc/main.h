@@ -44,7 +44,7 @@ extern float debug_arr[DEBUG_ARR_CNT];
 void VOFA_Cmd_Analyze(const char *buffer,uint32_t len);
 
 
-// #define PWN_ADC_DEBUG
+// #define PWM_ADC_DEBUG
 
 #define ADC_SAMPLE_CYCLES ADC_SAMPLETIME_3CYCLES
 // #define ADC_SAMPLE_CYCLES ADC_SAMPLETIME_15CYCLES

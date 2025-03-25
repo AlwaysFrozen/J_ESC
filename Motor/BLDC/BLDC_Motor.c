@@ -33,6 +33,8 @@ BLDC_CONTROL_t  bldc_ctrl =
     .start_max_mse = 40,
     /* sensorless run config */ 
     .rapid_demagnetization_enable = 0,
+    .rapid_demagnetization_angle = 0,
+    .forced_commutation_enable = 0,
     .befm_detect_delay_angle = 5,
     .befm_filter_angle = 5,
     /* stall protect */ 
@@ -45,10 +47,10 @@ BLDC_CONTROL_t  bldc_ctrl =
     /* fliter config */
     .virtual_mid_filter_rate = 0.05,
     /* VVVF config */
-    .VVVF_method = BLDC_VVVF_VF,
+    .VVVF_method = BLDC_VVVF_None,
     .VVVF_ratio = 10,
-    .PWM_freq_min = 7 * 1000,
-    .PWM_freq_max = 84 * 1000,
+    .PWM_freq_min = 42 * 1000,
+    .PWM_freq_max = 42 * 1000,
 };
 
 
@@ -294,7 +296,7 @@ void Plug_Brake(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run)
 #if 0
 static void Update_Filter_Value(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run,uint8_t len)
 {
-    len = _constrain(len,0,31);
+    len = CONSTRAIN(len,0,31);
     if(ctrl->sensor_type == SENSOR_LESS)
     {
         run->befm_filter_len = len;
@@ -318,7 +320,7 @@ static void Update_Filter_Value(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run,uint8_t len
 
 static void Update_Filter_Value_Fast(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run,uint8_t len)
 {
-    len = _constrain(len,0,31);
+    len = CONSTRAIN(len,0,31);
     run->befm_filter_len = len;
     run->befm_filter_value = filter_value_list[len];
     Hall_Sensor.hall_filter_len = len;
@@ -652,13 +654,13 @@ static void VVVF_Process(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run)
         case BLDC_VVVF_FF:
             // run->PWM_freq_now = abs(run->eletrical_rpm) / 60 * 6 * ctrl->VVVF_ratio;
             run->PWM_freq_now = abs(run->eletrical_rpm) * ctrl->VVVF_ratio / 10;
-            run->PWM_freq_now = _constrain(run->PWM_freq_now, ctrl->PWM_freq_min, ctrl->PWM_freq_max);
+            run->PWM_freq_now = CONSTRAIN(run->PWM_freq_now, ctrl->PWM_freq_min, ctrl->PWM_freq_max);
             break;
 
         case BLDC_VVVF_VFF:
             // run->PWM_freq_now = abs(run->eletrical_rpm) / 60 * 6 * ctrl->VVVF_ratio;
             run->PWM_freq_now = abs(run->eletrical_rpm) * ctrl->VVVF_ratio / 10;
-            run->PWM_freq_now = _constrain(run->PWM_freq_now, ((ctrl->PWM_freq_max - ctrl->PWM_freq_min) * ctrl->output + ctrl->PWM_freq_min), ctrl->PWM_freq_max);
+            run->PWM_freq_now = CONSTRAIN(run->PWM_freq_now, ((ctrl->PWM_freq_max - ctrl->PWM_freq_min) * ctrl->output + ctrl->PWM_freq_min), ctrl->PWM_freq_max);
             break;
 
         case BLDC_VVVF_AUTO:
@@ -670,7 +672,7 @@ static void VVVF_Process(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run)
             {
                 run->PWM_freq_now -= 1000;
             }
-            run->PWM_freq_now = _constrain(run->PWM_freq_now, ctrl->PWM_freq_min, ctrl->PWM_freq_max);
+            run->PWM_freq_now = CONSTRAIN(run->PWM_freq_now, ctrl->PWM_freq_min, ctrl->PWM_freq_max);
             break;
             
         default:
@@ -705,7 +707,7 @@ static void BLDC_Current_Process(BLDC_CONTROL_t *ctrl,BLDC_RUN_t *run)
             break;
     }
 
-    FirstOrder_LPF_Cacl(run->Is,run->Is_f,Filter_Rate.bus_current_filter_rate);
+    FirstOrder_LPF_Cal(run->Is,run->Is_f,Filter_Rate.bus_current_filter_rate);
     run->V_bus = Virtual_Moto.V_bus_v_f;
     run->Us = run->V_bus * ctrl->output;
     run->I_bus = run->Us * run->Is_f / run->V_bus;
@@ -748,7 +750,7 @@ void BLDC_Process(void)
         }
         #endif
 
-        FirstOrder_LPF_Cacl(bldc_run.virtual_mid,bldc_run.virtual_mid_f,bldc_ctrl.virtual_mid_filter_rate);
+        FirstOrder_LPF_Cal(bldc_run.virtual_mid,bldc_run.virtual_mid_f,bldc_ctrl.virtual_mid_filter_rate);
 
         if(bldc_run.run_state == BLDC_Stop && bldc_run.virtual_mid_f < 100)
         {
@@ -771,8 +773,53 @@ void BLDC_Process(void)
             bldc_run.befm_queue_f[1] = 0;
             bldc_run.befm_queue_f[2] = 0;
         }
-        // else if(++bldc_run.befm_detect_delay_cnt > bldc_run.befm_detect_delay_cnt_ref || bldc_run.run_state == BLDC_StartUp)
-        else if((bldc_run.run_state == BLDC_Run && ++bldc_run.befm_detect_delay_cnt > bldc_run.befm_detect_delay_cnt_ref) || bldc_run.run_state != BLDC_Run)
+        else if(bldc_run.run_state == BLDC_Run)
+        {
+            if(++bldc_run.rapid_demagnetization_cnt > bldc_run.rapid_demagnetization_cnt_ref)
+            {
+                if(++bldc_run.befm_detect_delay_cnt > bldc_run.befm_detect_delay_cnt_ref)
+                {
+                    bldc_run.befm_queue[0] = bldc_run.befm_queue[0] << 1;
+                    bldc_run.befm_queue[1] = bldc_run.befm_queue[1] << 1;
+                    bldc_run.befm_queue[2] = bldc_run.befm_queue[2] << 1;
+                    
+                    bldc_run.befm_queue[0] |= phase_voltage_V_f.U > bldc_run.virtual_mid_f; 
+                    bldc_run.befm_queue[1] |= phase_voltage_V_f.V > bldc_run.virtual_mid_f;
+                    bldc_run.befm_queue[2] |= phase_voltage_V_f.W > bldc_run.virtual_mid_f;
+
+                    bldc_run.befm_filter_res[0] = bldc_run.befm_queue[0] & bldc_run.befm_filter_value;
+                    if(bldc_run.befm_filter_res[0] == bldc_run.befm_filter_value)
+                    {
+                        bldc_run.befm_queue_f[0] = 1;
+                    }
+                    else if(bldc_run.befm_filter_res[0] == 0x00)
+                    {
+                        bldc_run.befm_queue_f[0] = 0;
+                    }
+
+                    bldc_run.befm_filter_res[1] = bldc_run.befm_queue[1] & bldc_run.befm_filter_value;
+                    if(bldc_run.befm_filter_res[1] == bldc_run.befm_filter_value)
+                    {
+                        bldc_run.befm_queue_f[1] = 1;
+                    }
+                    else if(bldc_run.befm_filter_res[1] == 0x00)
+                    {
+                        bldc_run.befm_queue_f[1] = 0;
+                    }
+
+                    bldc_run.befm_filter_res[2] = bldc_run.befm_queue[2] & bldc_run.befm_filter_value;
+                    if(bldc_run.befm_filter_res[2] == bldc_run.befm_filter_value)
+                    {
+                        bldc_run.befm_queue_f[2] = 1;
+                    }
+                    else if(bldc_run.befm_filter_res[2] == 0x00)
+                    {
+                        bldc_run.befm_queue_f[2] = 0;
+                    }
+                }
+            }
+        }
+        else
         {
             bldc_run.befm_queue[0] = bldc_run.befm_queue[0] << 1;
             bldc_run.befm_queue[1] = bldc_run.befm_queue[1] << 1;
@@ -822,7 +869,7 @@ void BLDC_Process(void)
 
             bldc_run.phase_cnt_last = bldc_run.phase_cnt;
             bldc_run.phase_cnt = 0;
-            FirstOrder_LPF_Cacl(bldc_run.phase_cnt_last,bldc_run.phase_cnt_f,Filter_Rate.RPM_filter_rate);
+            FirstOrder_LPF_Cal(bldc_run.phase_cnt_last,bldc_run.phase_cnt_f,Filter_Rate.RPM_filter_rate);
             
             if(bldc_ctrl.delay_angle)
             {
@@ -859,7 +906,7 @@ void BLDC_Process(void)
                 // bldc_run.period_cnt += 6 * bldc_run.befm_filter_len;
                 bldc_run.period_cnt_last = bldc_run.period_cnt;
                 bldc_run.period_cnt = 0;
-                FirstOrder_LPF_Cacl(bldc_run.period_cnt_last,bldc_run.period_cnt_f,Filter_Rate.RPM_filter_rate);
+                FirstOrder_LPF_Cal(bldc_run.period_cnt_last,bldc_run.period_cnt_f,Filter_Rate.RPM_filter_rate);
                 
                 // if(bldc_ctrl.delay_angle)
                 // {
@@ -871,10 +918,11 @@ void BLDC_Process(void)
                 // }
 
                 bldc_run.befm_filter_len = bldc_run.period_cnt_f * bldc_ctrl.befm_filter_angle / 360;
-                bldc_run.befm_filter_len = _constrain(bldc_run.befm_filter_len,0,31);
+                bldc_run.befm_filter_len = CONSTRAIN(bldc_run.befm_filter_len,0,31);
                 bldc_run.befm_filter_value = filter_value_list[bldc_run.befm_filter_len];
 
                 bldc_run.befm_detect_delay_cnt_ref = bldc_run.period_cnt_f * bldc_ctrl.befm_detect_delay_angle / 360;
+                bldc_run.rapid_demagnetization_cnt_ref = bldc_run.period_cnt_f * bldc_ctrl.rapid_demagnetization_angle / 360;
 
                 if(bldc_run.period_cnt_f)
                 {
@@ -938,6 +986,43 @@ void BLDC_Process(void)
         else
         {
             bldc_run.phase_cnt++;
+            if(bldc_run.phase_cnt > bldc_run.phase_cnt_last * 1.5f &&
+                bldc_run.phase_cnt < bldc_run.phase_cnt_last * 3.0f &&
+                bldc_run.run_state == BLDC_Run && 
+                bldc_ctrl.forced_commutation_enable)
+            {
+                if(bldc_run.override_step == 0)
+                {
+                    if(Motor_Config.dir == CCW)
+                    {
+                        for(uint8_t i = 0;i < sizeof(step_seq_ccw);i++)
+                        {
+                            if(step_seq_ccw[i] == bldc_run.step_index)
+                            {
+                                i = (i + 1) % sizeof(step_seq_ccw);
+                                bldc_run.override_step = i;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for(uint8_t i = 0;i < sizeof(step_seq_cw);i++)
+                        {
+                            if(step_seq_cw[i] == bldc_run.step_index)
+                            {
+                                i = (i + 1) % sizeof(step_seq_cw);
+                                bldc_run.override_step = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                bldc_run.override_step = 0;
+            }
         }
 
         if(bldc_run.step_index != bldc_run.befm_index)
@@ -1022,7 +1107,7 @@ void BLDC_Process(void)
             
             bldc_run.phase_cnt_last = bldc_run.phase_cnt;
             bldc_run.phase_cnt = 0;
-            FirstOrder_LPF_Cacl(bldc_run.phase_cnt_last,bldc_run.phase_cnt_f,Filter_Rate.RPM_filter_rate);
+            FirstOrder_LPF_Cal(bldc_run.phase_cnt_last,bldc_run.phase_cnt_f,Filter_Rate.RPM_filter_rate);
 
             //bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 60 / (bldc_run.phase_cnt_f * 6) * bldc_run.dir;
             bldc_run.eletrical_rpm = bldc_run.PWM_freq_now * 10 / bldc_run.phase_cnt_f * bldc_run.dir;
@@ -1101,7 +1186,7 @@ void BLDC_Process(void)
                     if(bldc_run.delay_Cnt_Ref > bldc_run.PWM_freq_now * 10 / (bldc_ctrl.KV * bldc_ctrl.pole_pairs * bldc_ctrl.start_force * Virtual_Moto.V_bus_v_f))
                     {
                         bldc_ctrl.output += bldc_ctrl.start_force_rate;
-                        bldc_ctrl.output = _constrain(bldc_ctrl.output,bldc_ctrl.output_min,bldc_ctrl.start_force * 2);
+                        bldc_ctrl.output = CONSTRAIN(bldc_ctrl.output,bldc_ctrl.output_min,bldc_ctrl.start_force * 2);
 
                         bldc_run.delay_Cnt_Ref *= bldc_ctrl.start_time_rate;//exponential curve
                         // bldc_run.delay_Cnt_Ref -= bldc_run.PWM_freq_now * bldc_ctrl.start_first_step_ms / 1000 * (1 - bldc_ctrl.start_time_rate);
@@ -1136,6 +1221,7 @@ void BLDC_Process(void)
                 bldc_run.start_step_index = step_seq_cw[bldc_run.start_index];
             }
             bldc_run.befm_detect_delay_cnt = 0;
+            bldc_run.rapid_demagnetization_cnt = 0;
             VVVF_Process(&bldc_ctrl,&bldc_run);
             HallLess_MOS_Switch(&bldc_ctrl,&bldc_run,bldc_run.start_step_index,Motor_Config.dir);
         }
@@ -1145,20 +1231,36 @@ void BLDC_Process(void)
         {
             if(bldc_ctrl.sensor_type == SENSOR_LESS)
             {
-                if(bldc_run.delay_angle_cnt > bldc_run.delay_angle_cnt_ref)
+                if(bldc_run.override_step == 0)
                 {
                     bldc_run.delay_angle_cnt = 0;
                     bldc_run.step_index_last = bldc_run.step_index;
                     bldc_run.step_index = bldc_run.befm_index;
                     bldc_run.befm_detect_delay_cnt = 0;
+                    bldc_run.rapid_demagnetization_cnt = 0;
                 }
-                if(bldc_run.befm_detect_delay_cnt <= bldc_run.befm_detect_delay_cnt_ref && bldc_ctrl.rapid_demagnetization_enable)
+                if(bldc_run.rapid_demagnetization_cnt < bldc_run.rapid_demagnetization_cnt_ref)
                 {
                     HallLess_MOS_Switch_Demagnetization(&bldc_ctrl,&bldc_run,bldc_run.step_index,Motor_Config.dir);
+                    if(bldc_run.delay_angle_cnt > bldc_run.delay_angle_cnt_ref)
+                    {
+                        bldc_run.delay_angle_cnt = 0;
+                        bldc_run.step_index_last = bldc_run.step_index;
+                        bldc_run.step_index = bldc_run.befm_index;
+                        bldc_run.befm_detect_delay_cnt = 0;
+                    }
+                    if(bldc_run.befm_detect_delay_cnt <= bldc_run.befm_detect_delay_cnt_ref && bldc_ctrl.rapid_demagnetization_enable)
+                    {
+                        HallLess_MOS_Switch_Demagnetization(&bldc_ctrl,&bldc_run,bldc_run.step_index,Motor_Config.dir);
+                    }
+                    else
+                    {
+                        HallLess_MOS_Switch(&bldc_ctrl,&bldc_run,bldc_run.step_index,Motor_Config.dir);
+                    }
                 }
                 else
                 {
-                    HallLess_MOS_Switch(&bldc_ctrl,&bldc_run,bldc_run.step_index,Motor_Config.dir);
+                    HallLess_MOS_Switch(&bldc_ctrl,&bldc_run,bldc_run.override_step,Motor_Config.dir);
                 }
                 VVVF_Process(&bldc_ctrl,&bldc_run);
                 BLDC_Current_Process(&bldc_ctrl,&bldc_run);
@@ -1214,6 +1316,7 @@ void Start_BLDC_Motor(void)
     if(bldc_ctrl.sensor_type == SENSOR_LESS)
     {
         bldc_run.start_seq = BLDC_Start_Order;
+        bldc_run.override_step = 0;
         if(Motor_Config.dir == CCW)
         {   
             #if ANTI_WIND_STARTUP_ENABLE

@@ -32,7 +32,7 @@ static void Sine_Wave_Generate(uint8_t phase_cnt,float out_put,float angle,uint1
     sine_list[0] = sinf(angle);
     if(phase_cnt == 1)
     {
-        sine_list[1] = sinf(Normalize_Angle(angle + _PI));
+        sine_list[1] = sinf(Normalize_Rad(angle + _PI));
         *CMP1 = period * sine_list[0] * out_put;
         if(*CMP1 > period)  *CMP1 = period;
         *CMP2 = period * sine_list[1] * out_put;
@@ -40,8 +40,8 @@ static void Sine_Wave_Generate(uint8_t phase_cnt,float out_put,float angle,uint1
     }
     else if(phase_cnt == 3)
     {
-        sine_list[1] = sinf(Normalize_Angle(angle - _2PI_3));
-        sine_list[2] = sinf(Normalize_Angle(angle + _2PI_3));
+        sine_list[1] = sinf(Normalize_Rad(angle - _2PI_3));
+        sine_list[2] = sinf(Normalize_Rad(angle + _2PI_3));
         *CMP1 = period * sine_list[0] * out_put;
         if(*CMP1 > period)  *CMP1 = period;
         *CMP2 = period * sine_list[1] * out_put;
@@ -57,7 +57,7 @@ void Inverter_Process(void)
     if(inverter_run.is_running)
     {
         inverter_run.angle += inverter_run.angle_step;
-        inverter_run.angle = Normalize_Angle(inverter_run.angle);
+        inverter_run.angle = Normalize_Rad(inverter_run.angle);
 
         if(motor_type_now == Single_Phase_Inverter)
         {

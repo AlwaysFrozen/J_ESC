@@ -12,6 +12,9 @@
 
 #include "Sensor.h"
 
+#define ADC_CALI_TIMES      (64)
+#define ADC_CALI_IN_IRQ     (1)
+
 typedef struct
 {
   uint8_t ADC_Cali_Cnt;
@@ -19,6 +22,7 @@ typedef struct
 }ADC_Cali_t;
 
 extern ADC_Cali_t adc_cali;
+extern ADC_Cali_t adc_cali_temp;
 extern uint16_t Vbus_ADC;
 extern float adc_value[6];
 extern UVW_Axis_t phase_voltage_V;

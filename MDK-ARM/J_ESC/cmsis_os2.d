@@ -1,8 +1,8 @@
 j_esc\cmsis_os2.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c
-j_esc\cmsis_os2.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+j_esc\cmsis_os2.o: E:\Keil\ARM\ARMCC\Bin\..\include\string.h
 j_esc\cmsis_os2.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
-j_esc\cmsis_os2.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
-j_esc\cmsis_os2.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
+j_esc\cmsis_os2.o: E:\Keil\ARM\ARMCC\Bin\..\include\stdint.h
+j_esc\cmsis_os2.o: E:\Keil\ARM\ARMCC\Bin\..\include\stddef.h
 j_esc\cmsis_os2.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 j_esc\cmsis_os2.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
 j_esc\cmsis_os2.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h

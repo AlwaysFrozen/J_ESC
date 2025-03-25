@@ -34,22 +34,6 @@ typedef struct SMO
     float ThetaOffset; // Output: Offset used to compensate rotor angle
     float SpeedFilter;
 
-    float Valpha;      // Input: Stationary alfa-axis stator voltage
-    float Ialpha;      // Input: Stationary alfa-axis stator current
-    float EstIalpha;   // Variable: Estimated stationary alfa-axis stator current
-    float IalphaError; // Variable: Stationary alfa-axis current error
-    float Zalpha;      // Output: Stationary alfa-axis sliding control
-    float Ealpha;      // Variable: Stationary alfa-axis back EMF
-    float EalphaFinal; // Variable: Filtered EMF for Angle calculation
-
-    float Vbeta;      // Input: Stationary beta-axis stator voltage
-    float Ibeta;      // Input: Stationary beta-axis stator current
-    float EstIbeta;   // Variable: Estimated stationary beta-axis stator current
-    float IbetaError; // Variable: Stationary beta-axis current error
-    float Zbeta;      // Output: Stationary beta-axis sliding control
-    float Ebeta;      // Variable: Stationary beta-axis back EMF
-    float EbetaFinal; // Variable: Filtered EMF for Angle calculation
-
     AB_Axis_t V_alpha_beta;
     AB_Axis_t I_alpha_beta;
     AB_Axis_t I_alpha_beta_estimated;
@@ -75,8 +59,7 @@ typedef struct SMO
     float E_rpm;
 } SMO_t;
 
-extern SMO_t smo_observer;
-void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc);
+void SMO_Init(FOC_CONTROL_t *ctrl,SMO_t *s,float speed_fc,IIR_Filter_t *p_iir);
 void SMO_Run(SMO_t *s, FOC_Para_t *para);
 
 #endif

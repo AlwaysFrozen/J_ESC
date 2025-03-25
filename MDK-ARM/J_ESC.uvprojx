@@ -16,8 +16,8 @@
         <TargetCommonOption>
           <Device>STM32F405RGTx</Device>
           <Vendor>STMicroelectronics</Vendor>
-          <PackID>Keil.STM32F4xx_DFP.2.15.0</PackID>
-          <PackURL>http://www.keil.com/pack/</PackURL>
+          <PackID>Keil.STM32F4xx_DFP.2.17.0</PackID>
+          <PackURL>https://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000-0x2001BFFF) IRAM2(0x2001C000-0x2001FFFF) IROM(0x8000000-0x80FFFFF) CLOCK(25000000) FPU2 CPUTYPE("Cortex-M4") TZ</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
@@ -186,6 +186,7 @@
             <RvdsVP>2</RvdsVP>
             <RvdsMve>0</RvdsMve>
             <RvdsCdeCp>0</RvdsCdeCp>
+            <nBranchProt>0</nBranchProt>
             <hadIRAM2>1</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
@@ -693,6 +694,36 @@
               <FileType>1</FileType>
               <FilePath>..\Math\PLL.c</FilePath>
             </File>
+            <File>
+              <FileName>Angle_Utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\Angle_Utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>Filter.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\Filter.c</FilePath>
+            </File>
+            <File>
+              <FileName>Ramp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\Ramp.c</FilePath>
+            </File>
+            <File>
+              <FileName>Sort.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\Sort.c</FilePath>
+            </File>
+            <File>
+              <FileName>Utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\Utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>Vector_Utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Math\Vector_Utils.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -719,11 +750,6 @@
               <FilePath>..\Motor\Inverter\Inverter.c</FilePath>
             </File>
             <File>
-              <FileName>FluxLinkageObserver.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Motor\FOC\FluxLinkageObserver.c</FilePath>
-            </File>
-            <File>
               <FileName>FOC.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Motor\FOC\FOC.c</FilePath>
@@ -742,6 +768,11 @@
               <FileName>BLDC_Motor.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Motor\BLDC\BLDC_Motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>NFO.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\FOC\NFO.c</FilePath>
             </File>
           </Files>
         </Group>

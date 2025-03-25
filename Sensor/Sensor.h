@@ -7,21 +7,19 @@
 #include "stdint.h"
 #include "stdlib.h"
 #include "string.h"
-#include "My_Math.h"
 #include "math.h"
-
 
 
 typedef enum
 {
-    SENSOR_LESS,
-    SENSOR_LESS_VIS,
-    SENSOR_LESS_HFI,
-    HALL_120_SENSOR,
-    HALL_60_SENSOR,
-    IIC_ENCODER,
-    SPI_ENCODER,
-    ABI_ENCODER,
+    SENSOR_LESS         = 0x01,
+    SENSOR_LESS_VIS     = 0x02,
+    SENSOR_LESS_HFI     = 0x03,
+    HALL_120_SENSOR     = 0x10,
+    HALL_60_SENSOR      = 0x20,
+    ABI_ENCODER         = 0x100,
+    IIC_ENCODER         = 0x1000,
+    SPI_ENCODER         = 0x2000,
 }SENSOR_Type_t;
 
 typedef enum
