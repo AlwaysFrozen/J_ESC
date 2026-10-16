@@ -6,14 +6,14 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
- ******************************************************************************
+  ******************************************************************************
   */
 /* USER CODE END Header */
 
@@ -22,7 +22,7 @@
 #define __STM32F4xx_IT_H
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 /* Private includes ----------------------------------------------------------*/
@@ -43,12 +43,6 @@
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
-
-extern uint32_t PWM_T_Count;
-extern uint32_t PWM_H_Count;
-extern float PWM_Duty;
-extern uint16_t PWM_T_us;
-extern uint16_t PWM_H_us;
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
@@ -57,15 +51,16 @@ void HardFault_Handler(void);
 void MemManage_Handler(void);
 void BusFault_Handler(void);
 void UsageFault_Handler(void);
+void SVC_Handler(void);
 void DebugMon_Handler(void);
+void PendSV_Handler(void);
+void SysTick_Handler(void);
 void ADC_IRQHandler(void);
 void TIM1_UP_TIM10_IRQHandler(void);
-void TIM3_IRQHandler(void);
+void TIM2_IRQHandler(void);
 void TIM4_IRQHandler(void);
-void TIM7_IRQHandler(void);
-void DMA1_Stream0_IRQHandler(void);
-void DMA1_Stream3_IRQHandler(void);
-void DMA2_Stream0_IRQHandler(void);
+void TIM8_UP_TIM13_IRQHandler(void);
+void DMA2_Stream4_IRQHandler(void);
 void OTG_FS_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 

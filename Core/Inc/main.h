@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -29,29 +29,6 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
 
-#include "string.h"
-#include <stdio.h>
-#include <stdlib.h>
-
-// #define DAC_DEBUG
-// #define HALL_TIM_CAPTURE
-// #define PWN_INPUT
-
-#define DEBUG_VALUE_CNT   (10)
-#define DEBUG_ARR_CNT     (DEBUG_VALUE_CNT + 1)
-//Debug Data
-extern float debug_arr[DEBUG_ARR_CNT];
-void VOFA_Cmd_Analyze(const char *buffer,uint32_t len);
-
-
-// #define PWM_ADC_DEBUG
-
-#define ADC_SAMPLE_CYCLES ADC_SAMPLETIME_3CYCLES
-// #define ADC_SAMPLE_CYCLES ADC_SAMPLETIME_15CYCLES
-
-#define ADC_TRIGER_SOURCE_TIM1_CC4
-#define ADC_SAMPLE_HIGH_SIDE
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -72,8 +49,6 @@ void VOFA_Cmd_Analyze(const char *buffer,uint32_t len);
 
 /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -82,6 +57,25 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ENCODER_SPI_CS_Pin GPIO_PIN_4
+#define ENCODER_SPI_CS_GPIO_Port GPIOA
+#define LED_GREEN_Pin GPIO_PIN_0
+#define LED_GREEN_GPIO_Port GPIOB
+#define LED_RED_Pin GPIO_PIN_1
+#define LED_RED_GPIO_Port GPIOB
+#define HALL_A_Pin GPIO_PIN_6
+#define HALL_A_GPIO_Port GPIOC
+#define HALL_B_Pin GPIO_PIN_7
+#define HALL_B_GPIO_Port GPIOC
+#define HALL_C_Pin GPIO_PIN_8
+#define HALL_C_GPIO_Port GPIOC
+#define DRVER_SPI_CS_Pin GPIO_PIN_9
+#define DRVER_SPI_CS_GPIO_Port GPIOC
+#define DRIVER_EN_Pin GPIO_PIN_5
+#define DRIVER_EN_GPIO_Port GPIOB
+#define DRIVER_FAULT_Pin GPIO_PIN_7
+#define DRIVER_FAULT_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
