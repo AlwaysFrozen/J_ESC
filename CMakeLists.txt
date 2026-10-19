@@ -45,20 +45,32 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/inverter.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/realtime.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/dc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/foc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/hfi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/as5048a/as5048a.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/hcfa/hcfa.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/tamagawa/tamagawa.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/encoder.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/angle_utils.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/compliance_control.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/filter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/foc_utils.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/motion_planner.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/my_math.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/observer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/pid.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/pll.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/sine_generator.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/utils.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math/vector_utils.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/observer/observer.c
+    
+
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/global.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/realtime_callback.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/motor_api.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/motor.c
 )
 
 # Add include paths
@@ -66,7 +78,14 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     ${CMAKE_CURRENT_SOURCE_DIR}/bsp
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/as5048a
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/hcfa
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/tamagawa
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/math
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/observer
 )
 
 # Add project symbols (macros)

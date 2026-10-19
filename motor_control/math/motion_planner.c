@@ -11,7 +11,6 @@
 
 
 #include "motion_planner.h"
-#include "global.h"
 
 float p2(float t, float x0, float v0, float a)
 {

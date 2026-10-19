@@ -11,6 +11,10 @@
 
 
 #pragma once
+
+#include <math.h>
+#include <stdint.h>
+
 #include "utils.h"
 
 #ifndef NORMALIZE_USE_C_MATH

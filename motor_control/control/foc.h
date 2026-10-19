@@ -11,9 +11,11 @@
 
 
 #pragma once
-#include "../math/my_math.h"
+#include <math.h>
+#include <stdbool.h>
+
+#include "my_math.h"
 #include "motor.h"
-#include "motor_api.h"
 
 #define RUNNING_MASK     (0x0000000F)
 #define START_UP_MASK    (0x000000F0)
@@ -187,6 +189,31 @@ typedef struct
     int align_dir_detected_second;
     float rads_encoder_offset_second;
 } FOC_Status_t;
+
+/**
+ * @brief MTPA计算
+ * 
+ * @param p_motor_config 电机本体配置结构体指针
+ * @param p_foc_status foc运行反馈结构体指针
+ */
+void MTPA_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status);
+
+/**
+ * @brief 根据目标扭矩计算MTPA总电流参考值
+ *
+ * @param motor 电机本体配置结构体指针
+ * @param torque_ref 扭矩参考
+ * @return 带扭矩方向的定子电流矢量幅值参考
+ */
+float IPM_MTPA_From_Torque(const Motor_Config_t *motor, float torque_ref);
+
+/**
+ * @brief MTPV计算
+ * 
+ * @param p_motor_config 电机本体配置结构体指针
+ * @param p_foc_status foc运行反馈结构体指针
+ */
+void MTPV_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status);
 
 /**
  * @brief foc寻相实时更新

@@ -10,7 +10,11 @@
  */
 
 #pragma once
-#include "../math/my_math.h"
+
+#include <stdbool.h>
+#include <math.h>
+
+#include "utils.h"
 
 typedef enum
 {

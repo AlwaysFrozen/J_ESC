@@ -11,6 +11,13 @@
 
 
 #pragma once
+
+#include <stdint.h>
+
+#include <math.h>
+#include <stdbool.h>
+#include <string.h>
+
 #include "utils.h"
 
 #define FIR_MAX_TAPS                    (64U)       // FIR最多支持64个抽头

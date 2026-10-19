@@ -44,19 +44,19 @@
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 82,
+				"line" : 101,
 				"parent" : 0
 			},
 			{
 				"command" : 2,
 				"file" : 0,
-				"line" : 73,
+				"line" : 92,
 				"parent" : 0
 			},
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 65,
+				"line" : 77,
 				"parent" : 0
 			},
 			{
@@ -133,7 +133,35 @@
 				},
 				{
 					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/hal"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/control"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder/as5048a"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder/hcfa"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder/tamagawa"
+				},
+				{
+					"backtrace" : 6,
 					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/math"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/observer"
 				},
 				{
 					"backtrace" : 3,
@@ -211,7 +239,17 @@
 				26,
 				27,
 				28,
-				29
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39
 			]
 		},
 		{
@@ -252,7 +290,35 @@
 				},
 				{
 					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/hal"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/control"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder/as5048a"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder/hcfa"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/encoder/tamagawa"
+				},
+				{
+					"backtrace" : 6,
 					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/math"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "C:/Users/virtual/Desktop/J_ESC/motor_control/observer"
 				},
 				{
 					"backtrace" : 3,
@@ -390,7 +456,17 @@
 				26,
 				27,
 				28,
-				29
+				29,
+				30,
+				31,
+				32,
+				33,
+				34,
+				35,
+				36,
+				37,
+				38,
+				39
 			]
 		},
 		{
@@ -404,16 +480,6 @@
 			"name" : "Object Libraries",
 			"sourceIndexes" : 
 			[
-				30,
-				31,
-				32,
-				33,
-				34,
-				35,
-				36,
-				37,
-				38,
-				39,
 				40,
 				41,
 				42,
@@ -430,7 +496,17 @@
 				53,
 				54,
 				55,
-				56
+				56,
+				57,
+				58,
+				59,
+				60,
+				61,
+				62,
+				63,
+				64,
+				65,
+				66
 			]
 		}
 	],
@@ -535,6 +611,60 @@
 		{
 			"backtrace" : 8,
 			"compileGroupIndex" : 0,
+			"path" : "motor_control/hal/inverter.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/hal/realtime.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/control/dc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/control/foc.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/control/hfi.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/encoder/as5048a/as5048a.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/encoder/hcfa/hcfa.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/encoder/tamagawa/tamagawa.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/encoder/encoder.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
 			"path" : "motor_control/math/angle_utils.c",
 			"sourceGroupIndex" : 0
 		},
@@ -571,12 +701,6 @@
 		{
 			"backtrace" : 8,
 			"compileGroupIndex" : 0,
-			"path" : "motor_control/math/observer.c",
-			"sourceGroupIndex" : 0
-		},
-		{
-			"backtrace" : 8,
-			"compileGroupIndex" : 0,
 			"path" : "motor_control/math/pid.c",
 			"sourceGroupIndex" : 0
 		},
@@ -607,13 +731,25 @@
 		{
 			"backtrace" : 8,
 			"compileGroupIndex" : 0,
+			"path" : "motor_control/observer/observer.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
 			"path" : "motor_control/global.c",
 			"sourceGroupIndex" : 0
 		},
 		{
 			"backtrace" : 8,
 			"compileGroupIndex" : 0,
-			"path" : "motor_control/realtime_callback.c",
+			"path" : "motor_control/motor_api.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 8,
+			"compileGroupIndex" : 0,
+			"path" : "motor_control/motor.c",
 			"sourceGroupIndex" : 0
 		},
 		{

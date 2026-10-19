@@ -11,10 +11,6 @@
 
 
 #pragma once
-#include "../math/my_math.h"
-#include "motor.h"
-#include "motor_api.h"
-
 /**
  * @brief dc寻相实时更新
  * 

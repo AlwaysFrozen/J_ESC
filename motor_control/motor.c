@@ -17,18 +17,13 @@
 #include "motor.h"
 #include "motor_api.h"
 #include "global.h"
-#include "../drivers/multicore/ipc.h"
-#include "../drivers/pwm/pwm_driver.h"
+#include "inverter.h"
 #include "board.h"
 #include "foc.h"
 #include "dc.h"
 #include "motion_planner.h"
 #include "observer.h"
 #include <stddef.h>
-
-#if defined(FILTER_TEST_ENABLE) && defined(IPC_DMA_SYNC_BENCH)
-#error "FILTER_TEST_ENABLE and IPC_DMA_SYNC_BENCH cannot be enabled together"
-#endif
 
 /* 记录最近几次出现的警告,避免警告循环写入日志 */
 #define MOTOR_WARNING_LIST_CAPACITY (5U)
@@ -39,77 +34,13 @@ typedef struct
     uint32_t index;
 } Motor_Warning_List_t;
 
-static Motor_Warning_List_t motor_warning_list[SUPPORTED_AXIS_NUMBER];
-
-#ifdef FILTER_TEST_ENABLE
-typedef struct
-{
-    Filter_t filter;
-    Filter_Status_t init_status;
-    float phase;
-    float noise_phase;
-} Filter_Test_t;
-
-static Filter_Test_t filter_test_frt;
-static Filter_Test_t filter_test_rt;
-
-static void filter_test_channel_init(Filter_Test_t *test, const Filter_Config_t *config, float sample_freq)
-{
-    test->phase       = 0.0f;
-    test->noise_phase = 0.0f;
-    test->init_status = Init_Filter(&test->filter, config, sample_freq);
-}
-
-static void filter_test_process(Filter_Test_t *test, const float *params, float sample_freq, float *debug_value)
-{
-    // params: 直流偏置、正弦幅值、信号频率(Hz)、正弦噪声幅值、正弦噪声频率(Hz)。
-    float offset          = params[0];
-    float amplitude       = params[1];
-    float signal_freq     = CONSTRAIN(params[2], 0.0f, sample_freq * 0.5f);
-    float noise_amplitude = fabsf(params[3]);
-    float noise_freq      = CONSTRAIN(params[4], 0.0f, sample_freq * 0.5f);
-    float clean           = offset + amplitude * sinf(test->phase);
-    float input           = clean + noise_amplitude * sinf(test->noise_phase);
-
-    debug_value[0] = clean;
-    debug_value[1] = input;
-    debug_value[2] = Process_Filter(&test->filter, input);
-
-    test->phase += _2PI * signal_freq / sample_freq;
-    if (test->phase >= _2PI)
-    {
-        test->phase -= _2PI;
-    }
-
-    test->noise_phase += _2PI * noise_freq / sample_freq;
-    if (test->noise_phase >= _2PI)
-    {
-        test->noise_phase -= _2PI;
-    }
-}
-#endif
 
 static void motor_filter_init(int index)
 {
-    const Loop_Filter_Config_t *p_loop_filter_config = &global_config_in_core1.loop_filter_config[index];
+    const Loop_Filter_Config_t *p_loop_filter_config = &global_config.loop_filter_config[index];
     Loop_Filter_t *p_loop_filter_status              = &loop_filter_status[index];
     Motor_Status_t *p_motor_status                   = &global_status.motor_status[index];
 
-#ifdef FILTER_TEST_ENABLE
-    if (index == 0)
-    {
-        filter_test_channel_init(&filter_test_frt, &p_loop_filter_config->current_fb_filter_config, (float)BOARD_HRT_FREQ);
-        filter_test_channel_init(&filter_test_rt, &p_loop_filter_config->speed_out_filter_config, (float)BOARD_RT_FREQ);
-        if (filter_test_frt.init_status)
-        {
-            motor_set_ext_err(index, EXT_FAULT_CODE_CFG_CONTROL_CURRENT_FB_FILTER);
-        }
-        if (filter_test_rt.init_status)
-        {
-            motor_set_ext_err(index, EXT_FAULT_CODE_CFG_CONTROL_SPEED_OUT_FILTER);
-        }
-    }
-#else
     if (Init_Filter(&p_loop_filter_status->current_fb_filter, &p_loop_filter_config->current_fb_filter_config, (float)BOARD_RT_FREQ) != Filter_Status_OK)
         motor_set_ext_err(index, EXT_FAULT_CODE_CFG_CONTROL_CURRENT_FB_FILTER);
     if (Init_Filter(&p_loop_filter_status->current_ref_filter, &p_loop_filter_config->current_ref_filter_config, (float)BOARD_RT_FREQ) != Filter_Status_OK)
@@ -135,7 +66,6 @@ static void motor_filter_init(int index)
     Prime_Filter(&p_loop_filter_status->speed_ref_filter, p_motor_status->vel_ref);
     Prime_Filter(&p_loop_filter_status->pos_ref_filter, p_motor_status->pos_ref);
     Prime_Filter(&p_loop_filter_status->force_fb_filter, p_motor_status->force_fb);
-#endif
 }
 
 /**
@@ -160,7 +90,7 @@ static inline float motot_get_force_fb(int index)
  */
 static inline void motor_encoder_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config     = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config     = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status     = &global_status.motor_status[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
 
@@ -216,8 +146,8 @@ static inline void motor_encoder_update_rt(int index)
  */
 static inline void motor_torque_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     Loop_Filter_t *p_loop_filter_status                  = &loop_filter_status[index];
@@ -423,13 +353,12 @@ static inline void motor_check_err_rt(int index)
 {
     Power_Status_t *p_power_status                   = &global_status.power_status;
     Peripheral_Raw_Status_t *p_peripheral_raw_status = &global_status.peripheral_raw_status;
-    Motor_Config_t *p_motor_config                   = &global_config_in_core1.motor_config[index];
-    Board_Config_t *p_board_config                   = &global_config_in_core1.board_config;
+    Motor_Config_t *p_motor_config                   = &global_config.motor_config[index];
     Motor_Basic_Status_t *p_motor_basic_status       = &global_status.motor_basic_status[index];
     Motor_Status_t *p_motor_status                   = &global_status.motor_status[index];
 
     // 过压检测
-    if (p_motor_basic_status->v_bus > p_board_config->max_bus_voltage)
+    if (p_motor_basic_status->v_bus > BOARD_MAX_BUS_VOLTAGE)
     {
         if (++p_motor_status->voltage_up_cnt > MS_TO_RT_TICKS(10))
         {
@@ -442,7 +371,7 @@ static inline void motor_check_err_rt(int index)
     }
 
     // 欠压检测
-    if (p_motor_basic_status->v_bus < p_board_config->min_bus_voltage)
+    if (p_motor_basic_status->v_bus < BOARD_MIN_BUS_VOLTAGE)
     {
         if (++p_motor_status->voltage_down_cnt > MS_TO_RT_TICKS(10))
         {
@@ -455,7 +384,7 @@ static inline void motor_check_err_rt(int index)
     }
 
     // 过温检测
-    if (p_power_status->core_temp > p_board_config->max_temp)
+    if (p_power_status->core_temp > BOARD_MAX_TEMP)
     {
         if (++p_motor_status->core_temp_high_cnt > S_TO_RT_TICKS(5))
         {
@@ -467,7 +396,7 @@ static inline void motor_check_err_rt(int index)
         p_motor_status->core_temp_high_cnt = 0;
     }
 
-    if (p_power_status->board_temp > p_board_config->max_temp)
+    if (p_power_status->board_temp > BOARD_MAX_TEMP)
     {
         if (++p_motor_status->core_temp_low_cnt > S_TO_RT_TICKS(5))
         {
@@ -477,31 +406,6 @@ static inline void motor_check_err_rt(int index)
     else
     {
         p_motor_status->core_temp_low_cnt = 0;
-    }
-
-    // 低温检测
-    if (p_power_status->core_temp < p_board_config->min_temp)
-    {
-        if (++p_motor_status->board_temp_high_cnt > S_TO_RT_TICKS(5))
-        {
-            motor_set_err(index, FAULT_CODE_UNDER_TEMP_CORE);
-        }
-    }
-    else
-    {
-        p_motor_status->board_temp_high_cnt = 0;
-    }
-
-    if (p_power_status->board_temp < p_board_config->min_temp)
-    {
-        if (++p_motor_status->board_temp_low_cnt > S_TO_RT_TICKS(5))
-        {
-            motor_set_err(index, FAULT_CODE_UNDER_TEMP_BOARD);
-        }
-    }
-    else
-    {
-        p_motor_status->board_temp_low_cnt = 0;
     }
 
     // 电机母线过流检测
@@ -518,7 +422,7 @@ static inline void motor_check_err_rt(int index)
     }
 
     // 板母线过流检测
-    if (fabsf(p_power_status->i_bus) > p_board_config->bus_over_current_threshold)
+    if (fabsf(p_power_status->i_bus) > BOARD_MAX_BUS_CURRENT)
     {
         if (++p_motor_status->board_over_current_cnt > 1)
         {
@@ -590,9 +494,8 @@ static inline void motor_check_err_rt(int index)
  */
 static inline void motor_config_check(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
-    Board_Config_t *p_board_config                       = &global_config_in_core1.board_config;
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     if (p_motor_config->Ld > FLOAT_MIN)
     {
@@ -849,31 +752,6 @@ static inline void motor_config_check(int index)
     default:
         break;
     }
-
-    if (p_board_config->max_bus_voltage < FLOAT_EPSILON)
-    {
-        motor_set_ext_err(index, EXT_FAULT_CODE_CFG_BOARD_MAX_VOLTAGE);
-    }
-
-    if (p_board_config->min_bus_voltage < FLOAT_EPSILON || p_board_config->min_bus_voltage >= p_board_config->max_bus_voltage)
-    {
-        motor_set_ext_err(index, EXT_FAULT_CODE_CFG_BOARD_MIN_VOLTAGE);
-    }
-
-    if (p_board_config->bus_over_current_threshold < FLOAT_EPSILON)
-    {
-        motor_set_ext_err(index, EXT_FAULT_CODE_CFG_BOARD_BUS_OVER_CURRENT_THRESHOLD);
-    }
-
-    if (p_board_config->max_temp < FLOAT_EPSILON)
-    {
-        motor_set_ext_err(index, EXT_FAULT_CODE_CFG_BOARD_MAX_TEMP);
-    }
-
-    if (p_board_config->min_temp >= p_board_config->max_temp)
-    {
-        motor_set_ext_err(index, EXT_FAULT_CODE_CFG_BOARD_MIN_TEMP);
-    }
 }
 
 /**
@@ -883,8 +761,8 @@ static inline void motor_config_check(int index)
  */
 static void motor_calculate_torque_limits(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     p_motor_status->rated_torque = 0.0f;
@@ -926,13 +804,12 @@ static void motor_calculate_torque_limits(int index)
  */
 void motor_plan_pos(int index, float pos, float vel, float acc, float jerk)
 {
-    Axis_Config_t *p_axis_config       = &global_config_in_core1.axis_config[index];
     Motor_Status_t *p_motor_status     = &global_status.motor_status[index];
     Motion_Planner_t *p_motion_planner = &motion_planner[index];
 
     memset(p_motion_planner, 0, sizeof(Motion_Planner_t));
     p_motor_status->is_planning = motion_plan(p_motion_planner, p_motor_status->pos_fb, pos, acc, vel,
-                                              jerk, BOARD_RT_DT, p_axis_config->trajectory_type);
+                                              jerk, BOARD_RT_DT, 1);
 }
 
 /**
@@ -942,8 +819,8 @@ void motor_plan_pos(int index, float pos, float vel, float acc, float jerk)
  */
 static inline void motor_pos_plan_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     Motion_Planner_t *p_motion_planner                   = &motion_planner[index];
 
@@ -977,13 +854,12 @@ static inline void motor_pos_plan_update_rt(int index)
  */
 void motor_plan_vel(int index, float vel, float acc, float jerk)
 {
-    Axis_Config_t *p_axis_config       = &global_config_in_core1.axis_config[index];
     Motor_Status_t *p_motor_status     = &global_status.motor_status[index];
     Motion_Planner_t *p_motion_planner = &motion_planner[index];
 
     memset(p_motion_planner, 0, sizeof(Motion_Planner_t));
     p_motor_status->is_planning = velocity_plan(p_motion_planner, p_motor_status->vel_fb, vel, acc, jerk,
-                                                BOARD_RT_DT, p_axis_config->trajectory_type);
+                                                BOARD_RT_DT, 1);
 }
 
 /**
@@ -993,8 +869,8 @@ void motor_plan_vel(int index, float vel, float acc, float jerk)
  */
 static inline void motor_vel_plan_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     Motion_Planner_t *p_motion_planner                   = &motion_planner[index];
     float total_inertia                                  = p_motor_config->inertia_rotor + p_motor_config->inertia_load;
@@ -1024,8 +900,8 @@ static inline void motor_vel_plan_update_rt(int index)
  */
 static inline void current_loop_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     Loop_Filter_t *p_loop_filter_status                  = &loop_filter_status[index];
 
@@ -1061,8 +937,8 @@ static inline void current_loop_update_rt(int index)
  */
 static inline void current_d_sweep_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -1095,8 +971,8 @@ static inline void current_d_sweep_mode_update_rt(int index)
  */
 static inline void current_q_sweep_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -1129,8 +1005,8 @@ static inline void current_q_sweep_mode_update_rt(int index)
  */
 static inline void torque_loop_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     Loop_Filter_t *p_loop_filter_status                  = &loop_filter_status[index];
 
@@ -1166,16 +1042,14 @@ static inline void torque_loop_update_rt(int index)
  */
 static inline void speed_loop_update_rt(int index)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
-    Motor_Observer_Config_t *p_motor_observer_config   = &global_config_in_core1.motor_observer_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
+    Motor_Observer_Config_t *p_motor_observer_config   = &global_config.motor_observer_config[index];
     Motor_Status_t *p_motor_status                     = &global_status.motor_status[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     Motor_Observer_t *p_motor_observer                 = &global_status.motor_observer[index];
     Loop_Filter_t *p_loop_filter_status                = &loop_filter_status[index];
     float vel_fb                                       = p_motor_status->vel_fb;
-    float plan_torque_ff                               = p_motor_status->torque_ff;
-    float spring_torque_ff                             = motor_get_spring_compensation(index);
-    float torque_ff                                    = plan_torque_ff + spring_torque_ff;
+    float torque_ff                                    = p_motor_status->torque_ff;
 
     switch (p_motor_observer_config->observser_config.observer_type)
     {
@@ -1230,7 +1104,6 @@ static inline void impedance_update_rt(int index, float pos_err, float vel_err, 
     Motor_Status_t *p_motor_status              = &global_status.motor_status[index];
     Loop_Controller_t *p_loop_controller_status = &global_status.loop_controller_status[index];
 
-    torque_ff += motor_get_spring_compensation(index);
     Impedance_Update(&p_loop_controller_status->force_compliance, pos_err, vel_err, acc_err, torque_ff, use_md);
     p_motor_status->torque_ref = p_loop_controller_status->force_compliance.status.force_cmd;
     torque_loop_update_rt(index);
@@ -1243,8 +1116,8 @@ static inline void impedance_update_rt(int index, float pos_err, float vel_err, 
  */
 static inline void pos_loop_update_rt(int index)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
-    Motor_Observer_Config_t *p_motor_observer_config   = &global_config_in_core1.motor_observer_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
+    Motor_Observer_Config_t *p_motor_observer_config   = &global_config.motor_observer_config[index];
     Motor_Status_t *p_motor_status                     = &global_status.motor_status[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     Motor_Observer_t *p_motor_observer                 = &global_status.motor_observer[index];
@@ -1298,8 +1171,8 @@ static inline void pos_loop_update_rt(int index)
  */
 static inline void align_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -1429,7 +1302,7 @@ static inline void teaching_update_rt(int index, float force_err)
  */
 static inline void softland_update_rt(int index)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Motor_Status_t *p_motor_status                     = &global_status.motor_status[index];
 
     switch (p_loop_controller_config->force_controller_config.controller_type)
@@ -1459,7 +1332,7 @@ static inline void softland_update_rt(int index)
  */
 static inline void softland_plan_rt(int index, float vel_ref)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Motor_Status_t *p_motor_status                     = &global_status.motor_status[index];
     Loop_Filter_t *p_loop_filter_status                = &loop_filter_status[index];
 
@@ -1485,7 +1358,7 @@ static inline void softland_plan_rt(int index, float vel_ref)
  */
 void softland_reset(int index)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Motor_Status_t *p_motor_status                     = &global_status.motor_status[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
 
@@ -1852,8 +1725,8 @@ static inline void pos_sweep_mode_update_rt(int index)
  */
 static inline void vf_theta_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -1886,8 +1759,8 @@ static inline void vf_theta_mode_update_rt(int index)
  */
 static inline void vf_speed_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -1920,8 +1793,8 @@ static inline void vf_speed_mode_update_rt(int index)
  */
 static inline void if_theta_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -1954,8 +1827,8 @@ static inline void if_theta_mode_update_rt(int index)
  */
 static inline void if_speed_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -1988,8 +1861,8 @@ static inline void if_speed_mode_update_rt(int index)
  */
 static inline void vf_hfi_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_config->motor_type)
@@ -2021,8 +1894,8 @@ static inline void vf_hfi_mode_update_rt(int index)
  */
 static inline void rs_identify_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -2054,8 +1927,8 @@ static inline void rs_identify_mode_update_rt(int index)
  */
 static inline void ls_identify_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -2087,8 +1960,8 @@ static inline void ls_identify_mode_update_rt(int index)
  */
 static inline void pp_identify_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -2120,8 +1993,8 @@ static inline void pp_identify_mode_update_rt(int index)
  */
 static inline void flux_identify_mode_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -2197,10 +2070,10 @@ static inline void gravity_identify_mode_update_rt(int index)
  */
 float current_loop_delay_calculate(int index)
 {
-    Core1_Status_t *pstatus      = &global_status.core1_status;
-    float pwm_period_us          = 1e6f / (float)BOARD_PWM_FREQUENCY;
+    Core_Status_t *pstatus      = &global_status.core_status;
+    float pwm_period_us          = 1e6f / (float)BOARD_PWM_FREQ;
     float current_loop_period_us = 1e6f / (float)BOARD_HRT_FREQ;
-    float adc_trigger_time_us    = BOARD_MOTO_CNT_TO_US(MOTOR0_BLDCPWM_TRIG_CMP_VALUE);
+    float adc_trigger_time_us    = BOARD_MOTO_CNT_TO_US(BOARD_ADC_TRIGGER_COMPARE);
     float pwm_update_time_us     = pstatus->pwm_update_time[index];
     float pwm_reload_time_us     = (floorf(pwm_update_time_us / pwm_period_us) + 1.0f) * pwm_period_us;
     float delay_us               = pwm_reload_time_us - adc_trigger_time_us + 0.5f * current_loop_period_us;
@@ -2215,8 +2088,8 @@ float current_loop_delay_calculate(int index)
  */
 static inline void loop_controller_config_update_nrt(int index)
 {
-    Motor_Config_t *p_motor_config                     = &global_config_in_core1.motor_config[index];
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Motor_Config_t *p_motor_config                     = &global_config.motor_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
 
     if (p_loop_controller_config->current_controller_config.controller_type < Controller_Type_Parallel_PID || p_loop_controller_config->current_controller_config.controller_type >= Controller_Type_MAX)
@@ -2423,7 +2296,7 @@ static inline void neso_config_update_without_gain(NESO_Config_t *p_dst, NESO_Co
  */
 static inline void observer_config_update_nrt(int index)
 {
-    Motor_Observer_Config_t *p_motor_observer_config = &global_config_in_core1.motor_observer_config[index];
+    Motor_Observer_Config_t *p_motor_observer_config = &global_config.motor_observer_config[index];
     Motor_Observer_t *p_motor_observer               = &global_status.motor_observer[index];
 
     if (p_motor_observer_config->observser_config.auto_tune == 0)
@@ -2494,16 +2367,8 @@ void motor_update_nrt(int index)
  */
 void motor_update_rt(int index)
 {
-#ifdef FILTER_TEST_ENABLE
-    if (index == 0)
-    {
-        // core1_debug_value[3..5]: 无噪声信号、滤波器输入、滤波器输出。
-        filter_test_process(&filter_test_rt, &global_debug_value[5], (float)BOARD_RT_FREQ, &global_status.core1_debug_value[3]);
-    }
-#endif
-
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     motor_encoder_update_rt(index);
@@ -2689,18 +2554,10 @@ void motor_update_rt(int index)
  */
 void motor_update_frt(int index)
 {
-#ifdef FILTER_TEST_ENABLE
-    if (index == 0)
-    {
-        // core1_debug_value[0..2]: 无噪声信号、滤波器输入、滤波器输出。
-        filter_test_process(&filter_test_frt, &global_debug_value[0], (float)BOARD_HRT_FREQ, &global_status.core1_debug_value[0]);
-    }
-#endif
-
     Power_Status_t *p_power_status                       = &global_status.power_status;
     Peripheral_Raw_Status_t *p_peripheral_raw_status     = &global_status.peripheral_raw_status;
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
@@ -2783,7 +2640,7 @@ void motor_update_frt(int index)
         if (p_motor_status->motor_cnt == 0)
         {
             motor_pwm_set(index, 0.0f, 0.0f, 0.0f);
-            enable_pwm_output(index);
+            enable_inverter(index);
         }
         if (++p_motor_status->motor_cnt > BOARD_ADC_CALI_CNT)
         {
@@ -2807,7 +2664,7 @@ void motor_update_frt(int index)
         }
         else
         {
-            disable_pwm_output(index);
+            disable_inverter(index);
 
 #ifndef FAST_CURRENT_LOOP_ENABLE
             if (p_motor_basic_status->phase_voltage_offset.U > BOARD_TERMINAL_VOLTAGE_BIAS_ERROR_MAX)
@@ -2888,7 +2745,7 @@ void motor_update_frt(int index)
  */
 void motor_pwm_set(int index, float u, float v, float w)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
 
     // 电机反向 交换U相和V相占空比
     if (p_motor_config->motor_dir == -1)
@@ -2899,12 +2756,7 @@ void motor_pwm_set(int index, float u, float v, float w)
         v = temp;
     }
 
-#ifndef FAST_CURRENT_LOOP_ENABLE
-    hrpwm_update(index, u, v, w); // 速度最慢精度最高
-#else
-    pwm_update_fast(index, u, v, w); // 速度最快精度最低
-    // pwm_update(index, u, v, w);      // 速度中等精度中等
-#endif
+    pwm_duty_set(index, u, v, w);
 }
 
 /**
@@ -2913,13 +2765,11 @@ void motor_pwm_set(int index, float u, float v, float w)
  */
 void motor_init(void)
 {
-    memset(motor_warning_list, 0, sizeof(motor_warning_list));
-
-    for (int index = 0; index < SUPPORTED_AXIS_NUMBER; index++)
+    for (int index = 0; index < BOARD_SUPPORTED_MOTOR_NUMBER; index++)
     {
-        Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-        Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
-        Loop_Controller_Config_t *p_loop_controller_config   = &global_config_in_core1.loop_controller_config[index];
+        Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+        Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
+        Loop_Controller_Config_t *p_loop_controller_config   = &global_config.loop_controller_config[index];
         Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
         Loop_Controller_t *p_loop_controller_status          = &global_status.loop_controller_status[index];
 
@@ -3086,8 +2936,8 @@ void motor_init(void)
  */
 void motor_controller_reset(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -3122,8 +2972,8 @@ void motor_controller_reset(int index)
  */
 void motor_reset(int index)
 {
-    Motor_Config_t *p_motor_config                     = &global_config_in_core1.motor_config[index];
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Motor_Config_t *p_motor_config                     = &global_config.motor_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Motor_Status_t *p_motor_status                     = &global_status.motor_status[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     Motion_Planner_t *p_motion_planner                 = &motion_planner[index];
@@ -3262,7 +3112,7 @@ bool motor_enable(int index)
     }
 
     motor_pwm_set(index, 0.5f, 0.5f, 0.5f);
-    enable_pwm_output(index);
+    enable_inverter(index);
     p_motor_status->is_enabled      = 1;
     p_motor_status->motor_state     = MS_Running;
     p_motor_status->motor_ctrl_mode = MCM_None;
@@ -3281,7 +3131,7 @@ bool motor_disable(int index)
 {
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
 
-    disable_pwm_output(index);
+    disable_inverter(index);
     p_motor_status->is_enabled      = 0;
     p_motor_status->motor_state     = MS_IDLE;
     p_motor_status->motor_ctrl_mode = MCM_None;
@@ -3300,33 +3150,16 @@ void motor_set_err(int index, uint16_t code)
     Power_Status_t *p_power_status             = &global_status.power_status;
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
     Motor_Status_t *p_motor_status             = &global_status.motor_status[index];
-    Axis_Status_t *p_axis_status               = &global_status.axis_status[index];
-    Motor_Error_Log_t error_log                = {0};
 
     if (p_motor_status->motor_state == MS_Err)
     {
         return;
     }
-    disable_pwm_output(index);
+    disable_inverter(index);
     p_motor_status->is_enabled  = 0;
     p_motor_status->is_error    = 1;
     p_motor_status->motor_state = MS_Err;
     p_motor_status->err_code    = code;
-
-    error_log.code            = code;
-    error_log.axis_mode       = (int32_t)p_axis_status->axis_mode;
-    error_log.motor_ctrl_mode = (int32_t)p_motor_status->motor_ctrl_mode;
-    error_log.v_bus           = p_motor_basic_status->v_bus;
-    error_log.core_temp       = p_power_status->core_temp;
-    error_log.board_temp      = p_power_status->board_temp;
-    error_log.pos_ref         = p_axis_status->pos_ref;
-    error_log.pos_fb          = p_axis_status->pos_fb;
-    error_log.vel_ref         = p_axis_status->vel_ref;
-    error_log.vel_fb          = p_axis_status->vel_fb;
-    error_log.torque_ref      = p_axis_status->tor_ref;
-    error_log.torque_fb       = p_axis_status->tor_fb;
-
-    ipc_send_message(1, index, MOTOR_CMD_SET_ERROR, (uint8_t *)&error_log, sizeof(error_log), 5);
 }
 
 /**
@@ -3340,34 +3173,17 @@ void motor_set_ext_err(int index, uint32_t ext_code)
     Power_Status_t *p_power_status             = &global_status.power_status;
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
     Motor_Status_t *p_motor_status             = &global_status.motor_status[index];
-    Axis_Status_t *p_axis_status               = &global_status.axis_status[index];
-    Motor_Error_Log_t error_log                = {0};
 
     if (p_motor_status->motor_state == MS_Err)
     {
         return;
     }
-    disable_pwm_output(index);
+    disable_inverter(index);
     p_motor_status->is_enabled   = 0;
     p_motor_status->is_error     = 1;
     p_motor_status->motor_state  = MS_Err;
     p_motor_status->err_code     = FAULT_CODE_EXTEND;
     p_motor_status->ext_err_code = ext_code;
-
-    error_log.code            = ext_code;
-    error_log.axis_mode       = (int32_t)p_axis_status->axis_mode;
-    error_log.motor_ctrl_mode = (int32_t)p_motor_status->motor_ctrl_mode;
-    error_log.v_bus           = p_motor_basic_status->v_bus;
-    error_log.core_temp       = p_power_status->core_temp;
-    error_log.board_temp      = p_power_status->board_temp;
-    error_log.pos_ref         = p_axis_status->pos_ref;
-    error_log.pos_fb          = p_axis_status->pos_fb;
-    error_log.vel_ref         = p_axis_status->vel_ref;
-    error_log.vel_fb          = p_axis_status->vel_fb;
-    error_log.torque_ref      = p_axis_status->tor_ref;
-    error_log.torque_fb       = p_axis_status->tor_fb;
-
-    ipc_send_message(1, index, MOTOR_CMD_SET_EXT_ERROR, (uint8_t *)&error_log, sizeof(error_log), 5);
 }
 
 /**
@@ -3381,37 +3197,8 @@ void motor_set_warning(int index, uint32_t warn_code)
     Power_Status_t *p_power_status             = &global_status.power_status;
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
     Motor_Status_t *p_motor_status             = &global_status.motor_status[index];
-    Axis_Status_t *p_axis_status               = &global_status.axis_status[index];
-    Motor_Warning_Log_t warning_log            = {0};
-    Motor_Warning_List_t *p_warning_list       = &motor_warning_list[index];
 
-    for (uint32_t i = 0; i < MOTOR_WARNING_LIST_CAPACITY; i++)
-    {
-        if (p_warning_list->codes[i] == warn_code)
-            return;
-    }
-
-    p_warning_list->codes[p_warning_list->index] = warn_code;
-    if (++p_warning_list->index >= MOTOR_WARNING_LIST_CAPACITY)
-    {
-        p_warning_list->index = 0;
-    }
     p_motor_status->ext_warn_code = warn_code;
-
-    warning_log.code            = warn_code;
-    warning_log.axis_mode       = (int32_t)p_axis_status->axis_mode;
-    warning_log.motor_ctrl_mode = (int32_t)p_motor_status->motor_ctrl_mode;
-    warning_log.v_bus           = p_motor_basic_status->v_bus;
-    warning_log.core_temp       = p_power_status->core_temp;
-    warning_log.board_temp      = p_power_status->board_temp;
-    warning_log.pos_ref         = p_axis_status->pos_ref;
-    warning_log.pos_fb          = p_axis_status->pos_fb;
-    warning_log.vel_ref         = p_axis_status->vel_ref;
-    warning_log.vel_fb          = p_axis_status->vel_fb;
-    warning_log.torque_ref      = p_axis_status->tor_ref;
-    warning_log.torque_fb       = p_axis_status->tor_fb;
-
-    ipc_send_message(1, index, MOTOR_CMD_SET_WARN, (uint8_t *)&warning_log, sizeof(warning_log), 5);
 }
 
 /**
@@ -3436,7 +3223,6 @@ void motor_reset_err(int index)
     p_motor_status->err_code      = FAULT_CODE_NONE;
     p_motor_status->ext_err_code  = EXT_FAULT_CODE_NONE;
     p_motor_status->ext_warn_code = WARN_CODE_NONE;
-    memset(&motor_warning_list[index], 0, sizeof(motor_warning_list[index]));
 
     encoder_set_reset_err(index);
 }
@@ -3460,8 +3246,8 @@ void motor_refresh_pos(int index)
  */
 void motor_set_encoder_offset(int index, float offset)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_config->motor_type)
     {
@@ -3493,8 +3279,8 @@ void motor_set_encoder_offset(int index, float offset)
  */
 void motor_sync_encoder_offset(int index, float offset)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Encoder_Status_t *p_encoder_status                   = &global_status.encoder_status[index];
 
     switch (p_motor_config->motor_type)

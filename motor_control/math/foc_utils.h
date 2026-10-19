@@ -11,10 +11,76 @@
 
 
 #pragma once
-#include "../math/my_math.h"
-#include "motor.h"
-#include "motor_api.h"
-#include "foc.h"
+
+#include <math.h>
+#include <stdint.h>
+
+#include "utils.h"
+
+/**
+ * @brief 三相变量枚举
+ * 
+ */
+typedef enum
+{
+    Phase_U = 1,
+    Phase_V = 2,
+    Phase_W = 4
+} UVW_Phase_t;
+
+/**
+ * @brief 三相变量结构体
+ * 
+ */
+typedef struct
+{
+    float U;
+    float V;
+    float W;
+} UVW_Axis_t;
+
+/**
+ * @brief αβ结构体
+ * 
+ */
+typedef struct
+{
+    float Alpha;
+    float Beta;
+} AB_Axis_t;
+
+/**
+ * @brief dq结构体
+ * 
+ */
+typedef struct
+{
+    float D;
+    float Q;
+} DQ_Axis_t;
+
+/**
+ * @brief 正余弦结构体
+ * 
+ */
+typedef struct
+{
+    float sin;
+    float cos;
+} Sin_Cos_t;
+
+/**
+ * @brief 四象限枚举
+ * 
+ */
+typedef enum
+{
+    Quad_0,
+    Quad_1,
+    Quad_2,
+    Quad_3,
+    Quad_4,
+} Quadrant_t;
 
 /**
  * @brief 计算弧度对应的正余弦值
@@ -250,27 +316,3 @@ static inline void PWM_Dead_Zone_Compensation(const UVW_Axis_t *phase_current, f
     duty_out->W = CONSTRAIN(duty_raw->W + duty_comp->W, 0.0f, 1.0f);
 }
 
-/**
- * @brief MTPA计算
- * 
- * @param p_motor_config 电机本体配置结构体指针
- * @param p_foc_status foc运行反馈结构体指针
- */
-void MTPA_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status);
-
-/**
- * @brief 根据目标扭矩计算MTPA总电流参考值
- *
- * @param motor 电机本体配置结构体指针
- * @param torque_ref 扭矩参考
- * @return 带扭矩方向的定子电流矢量幅值参考
- */
-float IPM_MTPA_From_Torque(const Motor_Config_t *motor, float torque_ref);
-
-/**
- * @brief MTPV计算
- * 
- * @param p_motor_config 电机本体配置结构体指针
- * @param p_foc_status foc运行反馈结构体指针
- */
-void MTPV_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status);

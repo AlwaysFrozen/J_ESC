@@ -11,6 +11,11 @@
 
 
 #pragma once
+
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "utils.h"
 
 static inline bool Saturate_Vector_2d(float *x, float *y, float max)

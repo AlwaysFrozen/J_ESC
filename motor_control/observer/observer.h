@@ -11,8 +11,6 @@
 
 
 #pragma once
-#include "../math/my_math.h"
-
 typedef enum
 {
     Observer_Type_None,

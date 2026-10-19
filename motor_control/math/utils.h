@@ -13,9 +13,6 @@
 #pragma once
 #include <math.h>
 #include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
 
 #define BITS_MASK_U32(x) ((uint32_t)((x) >= 32U ? UINT32_MAX : ((1UL << (x)) - 1UL)))
 #define BITS_MASK_U16(x) ((uint16_t)((x) >= 16U ? UINT16_MAX : ((1UL << (x)) - 1UL)))

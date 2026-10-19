@@ -11,7 +11,7 @@
 
 
 #pragma once
-#include "../math/my_math.h"
+#include "my_math.h"
 #include "observer.h"
 
 #define RATED_TORQUE_RATE (1e3f)
@@ -28,7 +28,7 @@
 #define VELOCITY_ERR_MS (100.0f)
 #endif
 
-#define PWM_DEAD_ZONE_COMPENSATION_DUTY ((float)BOARD_PWM_DEAD_TIME / ((float)BOARD_PWM_RELOAD + 1.0f))
+#define PWM_DEAD_ZONE_COMPENSATION_DUTY ((float)BOARD_PWM_DEAD_TIME_NS / (1e9f / (float)BOARD_PWM_FREQ))
 
 /* 各相电流在 +/- 此阈值内线性过渡，区外使用完整死区补偿；单位 A。 */
 #ifndef PWM_DEAD_ZONE_TRANSITION_CURRENT
@@ -315,19 +315,6 @@ typedef enum
     EXT_FAULT_CODE_CFG_CONTROL_NESO_Z1_THRESHOLD,                ///< NESO Z1阈值配置错误
     EXT_FAULT_CODE_CFG_CONTROL_NESO_Z2_THRESHOLD,                ///< NESO Z2阈值配置错误
     EXT_FAULT_CODE_CFG_CONTROL_NESO_Z3_THRESHOLD,                ///< NESO Z3阈值配置错误
-
-    EXT_FAULT_CODE_CFG_BOARD_BRAKE_IO = 2000,                    ///< 抱闸IO配置错误
-    EXT_FAULT_CODE_CFG_BOARD_POSITIVE_LIMIT_IO,                  ///< 正限位IO配置错误
-    EXT_FAULT_CODE_CFG_BOARD_NEGATIVE_LIMIT_IO,                  ///< 负限位IO配置错误
-    EXT_FAULT_CODE_CFG_BOARD_HOME_IO,                            ///< 零点IO配置错误
-    EXT_FAULT_CODE_CFG_BOARD_PROBE_IO,                           ///< 探针IO配置错误
-    EXT_FAULT_CODE_CFG_BOARD_ANALOG_IN,                          ///< 模拟输入IO配置错误
-
-    EXT_FAULT_CODE_CFG_BOARD_MAX_VOLTAGE = 2100,                 ///< 最大母线电压配置错误
-    EXT_FAULT_CODE_CFG_BOARD_MIN_VOLTAGE,                        ///< 最小母线电压配置错误
-    EXT_FAULT_CODE_CFG_BOARD_BUS_OVER_CURRENT_THRESHOLD,         ///< 母线过流阈值配置错误
-    EXT_FAULT_CODE_CFG_BOARD_MAX_TEMP,                           ///< 最大温度配置错误
-    EXT_FAULT_CODE_CFG_BOARD_MIN_TEMP,                           ///< 最小温度配置错误
 } Motor_Ext_Err_Code_t;
 
 /**
@@ -347,71 +334,6 @@ typedef enum
     WARN_CODE_POS_LOOP_SATURATION,            ///< 位置环控制器饱和
     WARN_CODE_FORCE_LOOP_SATURATION,          ///< 力控环控制器饱和
 } Motor_Warning_Code_t;
-
-/**
- * @brief 三相变量枚举
- * 
- */
-typedef enum
-{
-    Phase_U = 1,
-    Phase_V = 2,
-    Phase_W = 4
-} UVW_Phase_t;
-
-/**
- * @brief 三相变量结构体
- * 
- */
-typedef struct
-{
-    float U;
-    float V;
-    float W;
-} UVW_Axis_t;
-
-/**
- * @brief αβ结构体
- * 
- */
-typedef struct
-{
-    float Alpha;
-    float Beta;
-} AB_Axis_t;
-
-/**
- * @brief dq结构体
- * 
- */
-typedef struct
-{
-    float D;
-    float Q;
-} DQ_Axis_t;
-
-/**
- * @brief 正余弦结构体
- * 
- */
-typedef struct
-{
-    float sin;
-    float cos;
-} Sin_Cos_t;
-
-/**
- * @brief 四象限枚举
- * 
- */
-typedef enum
-{
-    Quad_0,
-    Quad_1,
-    Quad_2,
-    Quad_3,
-    Quad_4,
-} Quadrant_t;
 
 /**
  * @brief 电机状态枚举

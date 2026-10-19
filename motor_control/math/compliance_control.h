@@ -11,8 +11,11 @@
 
 
 #pragma once
+
+#include <stdbool.h>
+#include <string.h>
+
 #include "utils.h"
-#include "filter.h"
 
 typedef struct
 {

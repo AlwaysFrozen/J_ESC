@@ -11,21 +11,18 @@
 
 
 #include "hfi.h"
-#include "foc.h"
-#include "board.h"
-#include "foc_utils.h"
-#include "global.h"
-#include "../drivers/multicore/ipc.h"
-#include "../drivers/pwm/pwm_driver.h"
-#include "motor.h"
-#include "motor_api.h"
-#include "encoder.h"
-#include "axis.h"
-#include "hpm_rng_drv.h"
-#include "hpm_mchtmr_drv.h"
-#include <math.h>
 
-static volatile uint32_t hfi_response_sequence[SUPPORTED_AXIS_NUMBER] = {0};
+#include <math.h>
+#include <string.h>
+
+#include "board.h"
+#include "global.h"
+
+#include "my_math.h"
+#include "motor.h"
+#include "foc.h"
+
+static volatile uint32_t hfi_response_sequence[BOARD_SUPPORTED_MOTOR_NUMBER] = {0};
 
 /**
  * @brief HFI初始化
@@ -35,7 +32,7 @@ static volatile uint32_t hfi_response_sequence[SUPPORTED_AXIS_NUMBER] = {0};
  */
 void hfi_init(int index, int enable_pole_identify)
 {
-    HFI_Config_t *p_hfi_config = &global_config_in_core1.hfi_config[index];
+    HFI_Config_t *p_hfi_config = &global_config.hfi_config[index];
     FOC_Status_t *p_foc_status = &global_status.foc_status[index];
     HFI_Status_t *p_hfi_status = &global_status.hfi_status[index];
     PLL_t *p_hfi_pll           = &hfi_pll[index];
@@ -75,7 +72,7 @@ void hfi_init(int index, int enable_pole_identify)
  */
 void hfi_update(int index)
 {
-    HFI_Config_t *p_hfi_config = &global_config_in_core1.hfi_config[index];
+    HFI_Config_t *p_hfi_config = &global_config.hfi_config[index];
     FOC_Status_t *p_foc_status = &global_status.foc_status[index];
     HFI_Status_t *p_hfi_status = &global_status.hfi_status[index];
     PLL_t *p_hfi_pll           = &hfi_pll[index];
@@ -170,7 +167,7 @@ void hfi_update(int index)
  */
 void hfi_pole_identify_update(int index)
 {
-    HFI_Config_t *p_hfi_config = &global_config_in_core1.hfi_config[index];
+    HFI_Config_t *p_hfi_config = &global_config.hfi_config[index];
     FOC_Status_t *p_foc_status = &global_status.foc_status[index];
     HFI_Status_t *p_hfi_status = &global_status.hfi_status[index];
     PLL_t *p_hfi_pll           = &hfi_pll[index];

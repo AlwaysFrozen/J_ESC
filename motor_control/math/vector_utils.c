@@ -1,5 +1,5 @@
 /**
- * @file Vector_Utils.c
+ * @file vector_utils.c
  * @author jinchl (jcl709905683@gmail.com)
  * @brief 
  * @version 0.1

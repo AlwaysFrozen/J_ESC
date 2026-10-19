@@ -11,7 +11,13 @@
 
 
 #include "observer.h"
+
+#include <math.h>
+#include <string.h>
+
 #include "global.h"
+
+#include "my_math.h"
 #include "motor.h"
 #include "motor_api.h"
 
@@ -109,7 +115,7 @@ static void NESO3_update(NESO_Config_t *p_config, NESO_Status_t *p_status, float
  */
 void observer_init(int index)
 {
-    Motor_Observer_Config_t *p_motor_observer_config = &global_config_in_core1.motor_observer_config[index];
+    Motor_Observer_Config_t *p_motor_observer_config = &global_config.motor_observer_config[index];
     Motor_Observer_t *p_motor_observer               = &global_status.motor_observer[index];
     Motor_Status_t *p_motor_status                   = &global_status.motor_status[index];
 
@@ -142,7 +148,7 @@ void observer_init(int index)
  */
 void observer_reset(int index)
 {
-    Motor_Observer_Config_t *p_motor_observer_config = &global_config_in_core1.motor_observer_config[index];
+    Motor_Observer_Config_t *p_motor_observer_config = &global_config.motor_observer_config[index];
     Motor_Observer_t *p_motor_observer               = &global_status.motor_observer[index];
     Motor_Status_t *p_motor_status                   = &global_status.motor_status[index];
 
@@ -177,8 +183,8 @@ void observer_reset(int index)
  */
 void observer_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                   = &global_config_in_core1.motor_config[index];
-    Motor_Observer_Config_t *p_motor_observer_config = &global_config_in_core1.motor_observer_config[index];
+    Motor_Config_t *p_motor_config                   = &global_config.motor_config[index];
+    Motor_Observer_Config_t *p_motor_observer_config = &global_config.motor_observer_config[index];
     Motor_Status_t *p_motor_status                   = &global_status.motor_status[index];
     Motor_Observer_t *p_motor_observer               = &global_status.motor_observer[index];
 
@@ -195,7 +201,7 @@ void observer_update_rt(int index)
         }
 
         // 已知弹簧保持力从模型输入中扣除，ESO 只估计剩余扰动，避免重复补偿。
-        float acc_ref = (p_motor_status->torque_ref - motor_get_spring_compensation(index)) / total_inertia;
+        float acc_ref = p_motor_status->torque_ref / total_inertia;
 
         NESO2_update(&p_motor_observer->neso_config, &p_motor_observer->neso_status, vel_fb, acc_ref);
 
@@ -218,7 +224,7 @@ void observer_update_rt(int index)
         }
 
         /* Keep the same torque-reference input convention as the existing ESO. */
-        float acc_ref = (p_motor_status->torque_ref - motor_get_spring_compensation(index)) / total_inertia;
+        float acc_ref = p_motor_status->torque_ref / total_inertia;
 
         NESO3_update(&p_motor_observer->neso_config, &p_motor_observer->neso_status, pos_fb, acc_ref);
 

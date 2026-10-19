@@ -23,7 +23,7 @@
 /* USER CODE BEGIN 0 */
 
 #include "global.h"
-#include "realtime_callback.h"
+#include "realtime.h"
 
 volatile uint16_t adc1_regular_dma_buffer[4];
 
@@ -519,12 +519,12 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
 
   /* Triple mode, equal sequence lengths and sample times: all three injected
      sequences finish together. Only ADC1 enables the JEOC interrupt. */
-  global_status.peripheral_raw_status.ia_adc_raw = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1);
-  global_status.peripheral_raw_status.ib_adc_raw = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
-  global_status.peripheral_raw_status.ic_adc_raw = HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1);
-  global_status.peripheral_raw_status.va_adc_raw = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_2);
-  global_status.peripheral_raw_status.vb_adc_raw = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2);
-  global_status.peripheral_raw_status.vc_adc_raw = HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2);
+  global_status.peripheral_raw_status.ia_adc_raw[0] = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1);
+  global_status.peripheral_raw_status.ib_adc_raw[0] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
+  global_status.peripheral_raw_status.ic_adc_raw[0] = HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1);
+  global_status.peripheral_raw_status.va_adc_raw[0] = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_2);
+  global_status.peripheral_raw_status.vb_adc_raw[0] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2);
+  global_status.peripheral_raw_status.vc_adc_raw[0] = HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2);
 
   /* ADC1 regular results are intentionally consumed at the same control
      rate as the injected current/voltage results. */

@@ -1,5 +1,5 @@
 /**
- * @file PID.c
+ * @file pid.c
  * @author jinchl (jcl709905683@gmail.com)
  * @brief PID 控制器整定与在线计算实现
  * @version 0.1
@@ -11,7 +11,6 @@
 
 
 #include "pid.h"
-#include "utils.h"
 
 // #define Kd_Enable
 // #define Kb_Enable

@@ -11,10 +11,10 @@
 
 
 #pragma once
-#include "../math/my_math.h"
-#include "motor.h"
-#include "motor_api.h"
+#include <stdbool.h>
+#include <stdint.h>
 
+#include "my_math.h"
 
 #ifndef POLE_IDENTIFY_CURRENT_SAMPLE_TIMES
 #define POLE_IDENTIFY_CURRENT_SAMPLE_TIMES 5

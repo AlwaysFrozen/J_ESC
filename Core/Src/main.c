@@ -29,6 +29,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "global.h"
+#include "realtime.h"
 #include "stm32f4xx_ll_tim.h"
 /* USER CODE END Includes */
 
@@ -117,49 +118,11 @@ int main(void)
   DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
   DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM8_STOP;
 
-  /* The startup file does not initialize the custom CCMRAM section. */
-  memset((void *)&global_status, 0, sizeof(global_status));
-
-  /* Enable/stabilize both slaves first, then arm the master interrupt.
-     In triple mode, InjectedStart on a slave only enables it; ADC1's
-     TIM8_CC4 trigger starts all three injected sequences together. */
-  if ((HAL_ADCEx_InjectedStart(&hadc2) != HAL_OK) ||
-      (HAL_ADCEx_InjectedStart(&hadc3) != HAL_OK) ||
-      (HAL_ADCEx_InjectedStart_IT(&hadc1) != HAL_OK))
-  {
-    Error_Handler();
-  }
-
-  /* ADC1 regular scan: board temperature, bus voltage, motor temperature,
-     analog input.  The regular results are read from the DMA buffer in the
-     injected conversion ISR, so DMA completion interrupts are disabled. */
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1_regular_dma_buffer, 4U) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  __HAL_DMA_DISABLE_IT(&hdma_adc1, DMA_IT_TC | DMA_IT_HT | DMA_IT_TE | DMA_IT_DME);
-  __HAL_DMA_DISABLE_IT(&hdma_adc1, DMA_IT_FE);
-  HAL_NVIC_DisableIRQ(DMA2_Stream4_IRQn);
-
-  HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
-
-  LL_TIM_CC_EnableChannel(TIM1,
-      LL_TIM_CHANNEL_CH1  | LL_TIM_CHANNEL_CH1N |
-      LL_TIM_CHANNEL_CH2  | LL_TIM_CHANNEL_CH2N |
-      LL_TIM_CHANNEL_CH3  | LL_TIM_CHANNEL_CH3N);
-
-  LL_TIM_EnableAllOutputs(TIM1);
-
-  if (HAL_TIM_Base_Start(&htim1) != HAL_OK)
-  {
-      Error_Handler();
-  }
-
-  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-  if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  global_init_default();
+  motor_init();
+  encoder_init();
+  high_realtime_init();
+  realtime_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -167,7 +130,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+    none_realtime_callback();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

@@ -10,16 +10,19 @@
  */
 
 
-#include "foc.h"
+#include "dc.h"
+
+#include <math.h>
+#include <string.h>
+
 #include "board.h"
-#include "foc_utils.h"
 #include "global.h"
-#include "../drivers/multicore/ipc.h"
-#include "../drivers/pwm/pwm_driver.h"
+
+#include "my_math.h"
 #include "motor.h"
-#include "motor_api.h"
 #include "encoder.h"
-#include "hpm_rng_drv.h"
+#include "foc.h"
+#include "inverter.h"
 
 /**
  * @brief dc编码器更新
@@ -28,7 +31,7 @@
  */
 static void dc_encoder_update(int index)
 {
-    Motor_Config_t *p_motor_config     = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config     = &global_config.motor_config[index];
     FOC_Status_t *p_foc_status         = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
 
@@ -54,7 +57,7 @@ static void dc_encoder_update(int index)
  */
 static void dc_u_i_update(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
@@ -95,8 +98,8 @@ static void dc_vf_update(int index)
  */
 static void dc_decoupling_update(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
     if (p_motor_controller_config->current_decoupling_type > Current_Decoupling_Type_None)
@@ -148,7 +151,7 @@ static void dc_decoupling_update(int index)
  */
 static void dc_current_loop_update(int index)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     FOC_Status_t *p_foc_status                         = &global_status.foc_status[index];
 
@@ -215,7 +218,7 @@ static void dc_limit_circle_update(int index)
  */
 static void dc_power_update(int index)
 {
-    Motor_Config_t *p_motor_config             = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config             = &global_config.motor_config[index];
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
     FOC_Status_t *p_foc_status                 = &global_status.foc_status[index];
 
@@ -240,6 +243,7 @@ static void dc_power_update(int index)
 static void dc_pwm_update(int index, int dt_comp_enable)
 {
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
+    Core_Status_t *pstatus                     = &global_status.core_status;
     FOC_Status_t *p_foc_status                 = &global_status.foc_status[index];
 
     float half_uq_rate = p_foc_status->u_dq_out.Q / p_foc_status->us_max * 0.5f;
@@ -276,6 +280,7 @@ static void dc_pwm_update(int index, int dt_comp_enable)
     p_motor_basic_status->phase_voltage_out.W = p_motor_basic_status->pwm_duty_raw.W * p_motor_basic_status->v_bus;
 
     motor_pwm_set(index, p_motor_basic_status->pwm_duty_out.U, p_motor_basic_status->pwm_duty_out.V, p_motor_basic_status->pwm_duty_out.W);
+    pstatus->pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(get_pwm_counter(index));
 }
 
 /**
@@ -285,8 +290,8 @@ static void dc_pwm_update(int index, int dt_comp_enable)
  */
 static inline void dc_align_slow_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
@@ -504,14 +509,11 @@ static inline void dc_align_slow_update_rt(int index)
         {
             int corrected_dir = -p_motor_config->motor_dir;
 
-            if (!ipc_send_message(1, index, MOTOR_CMD_SET_MOTOR_DIR, (uint8_t *)&corrected_dir, sizeof(corrected_dir), 0))
-            {
-                p_motor_config->motor_dir = corrected_dir;
+            p_motor_config->motor_dir = corrected_dir;
 
-                // 使用修正后的方向重新寻相
-                p_foc_status->align_state        = 0;
-                p_foc_status->align_dir_detected = 0;
-            }
+            // 使用修正后的方向重新寻相
+            p_foc_status->align_state        = 0;
+            p_foc_status->align_dir_detected = 0;
             break;
         }
 
@@ -545,7 +547,7 @@ static inline void dc_align_slow_update_rt(int index)
  */
 void dc_align_update_rt(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     switch (p_motor_controller_config->align_method)
@@ -627,7 +629,7 @@ void dc_update_rt(int index)
  */
 void dc_update_frt(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
     dc_encoder_update(index);
@@ -685,7 +687,7 @@ void dc_controller_reset(int index)
  */
 void dc_calculate_torque_limits(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
     float kt_abs                   = fabsf(p_motor_config->kt);
 
@@ -729,7 +731,7 @@ float dc_get_current_fb(int index)
  */
 void dc_set_torque_ref(int index, float torque_ref)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status     = &global_status.foc_status[index];
 

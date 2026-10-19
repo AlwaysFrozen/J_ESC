@@ -11,19 +11,18 @@
 
 
 #include "foc.h"
-#include "hfi.h"
-#include "board.h"
-#include "foc_utils.h"
-#include "global.h"
-#include "../drivers/multicore/ipc.h"
-#include "../drivers/pwm/pwm_driver.h"
-#include "motor.h"
-#include "motor_api.h"
-#include "encoder.h"
-#include "axis.h"
-#include "hpm_rng_drv.h"
-#include "hpm_mchtmr_drv.h"
+
 #include <math.h>
+#include <string.h>
+
+#include "board.h"
+#include "global.h"
+
+#include "my_math.h"
+#include "motor.h"
+#include "encoder.h"
+#include "hfi.h"
+#include "inverter.h"
 
 #if defined(HFI_DEBUG) && defined(FAST_CURRENT_LOOP_ENABLE)
 #error "HFI_DEBUG cannot be used with FAST_CURRENT_LOOP_ENABLE"
@@ -59,7 +58,7 @@ typedef struct
     uint32_t last_response_sequence;
 } FOC_Ls_Scan_t;
 
-static FOC_Ls_Scan_t foc_ls_scan[SUPPORTED_AXIS_NUMBER] = {0};
+static FOC_Ls_Scan_t foc_ls_scan[BOARD_SUPPORTED_MOTOR_NUMBER] = {0};
 
 #define FLUX_IDENTIFY_WE         (_2PI * 30.0f)
 #define FLUX_IDENTIFY_MAX_WE_ERR (_2PI * 5.0f)
@@ -69,8 +68,8 @@ static FOC_Ls_Scan_t foc_ls_scan[SUPPORTED_AXIS_NUMBER] = {0};
 static inline bool is_MTPA_allowed(int index)
 {
 #ifndef FAST_CURRENT_LOOP_ENABLE
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     return p_motor_controller_config->mtpa_enable && p_motor_config->saliency_ratio > FOC_MTPA_SALIENCY_RATE;
 #else
@@ -81,7 +80,7 @@ static inline bool is_MTPA_allowed(int index)
 static inline bool is_FW_allowed(int index)
 {
 #ifndef FAST_CURRENT_LOOP_ENABLE
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
     return p_motor_controller_config->fw_enable && p_foc_status->us_out_rate_raw > FOC_FW_VOLTAGE_RATE;
@@ -90,21 +89,230 @@ static inline bool is_FW_allowed(int index)
 #endif
 }
 
+/**
+ * @brief MTPA计算
+ * 
+ * @param p_motor_config 电机本体配置结构体指针
+ * @param p_foc_status foc运行反馈结构体指针
+ */
+void MTPA_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status)
+{
+    float l_diff = p_motor_config->L_diff;
+
+    if (fabsf(l_diff) < FLOAT_EPSILON)
+    {
+        p_foc_status->i_dq_ref.D = 0;
+        p_foc_status->i_dq_ref.Q = CONSTRAIN(p_foc_status->current_ref, -p_motor_config->peak_current, p_motor_config->peak_current);
+        return;
+    }
+
+    /*
+        方法一：低电流近似公式
+        Id = ΔL × Iq² / ψ
+        https://zhuanlan.zhihu.com/p/558759346
+        它是方法二在 |ΔL·Iq| << ψ 条件下的泰勒展开。
+        优点：
+        计算量最低，不需要开平方；
+        低电流、弱凸极电机上结果接近精确公式；
+        输出连续，适合算力很紧张的控制器。
+        缺点：
+        高电流下误差迅速增大；
+        |Id| 随 Iq² 增长，通常会给出过大的负 d 轴电流；
+        增加铜耗，并可能增加退磁风险；
+        Flux 接近零时会除零，不适用于同步磁阻电机；
+        电机饱和后 Ld/Lq/Flux 变化，误差更明显。
+        适合：低电流区域、凸极率不高、只需要简单近似的场合。
+     */
+    // p_foc_status->i_dq_ref.D = SQ(p_foc_status->current_ref) * l_diff / p_motor_config->Flux;
+
+    /*
+        方法二：以 Iq 为自变量的精确公式
+        Id = [sqrt(ψ² + 4ΔL²Iq²) - ψ] / (2ΔL)
+        https://zhuanlan.zhihu.com/p/624474437
+        优点：
+        对给定 Iq 的 MTPA 关系是精确的；
+        可以直接使用现有 i_dq_ref.Q；
+        不需要改变现有 q 轴电流指令的语义；
+        相比方法一，高电流下不会产生过大的 Id。
+        缺点：
+        添加 Id 后，总电流幅值会大于原来的 |Iq|；
+        受峰值电流圆限制后，Id/Iq 可能被同时缩放；
+        如果转矩指令仍简单使用 Iq=T/kt，增加的磁阻转矩会使实际转矩高于目标；
+        使用 sqrt(x)-ψ 会在低电流时发生浮点消减误差。
+        推荐使用数值更稳定的等价形式：
+        Id = 2ΔL·Iq² / [sqrt(ψ² + 4ΔL²Iq²) + ψ]
+     */
+    // p_foc_status->i_dq_ref.D = (2 * l_diff * SQ(p_foc_status->current_ref)) / (sqrtf(SQ(p_motor_config->Flux) + 4 * SQ(l_diff) * SQ(p_foc_status->current_ref)) + p_motor_config->Flux);
+
+    /*
+        方法三：以定子电流矢量幅值 Is 为自变量的精确公式（参考 VESC）
+        Id = [sqrt(psi^2 + 8*dL^2*Is^2) - psi] / (4*dL)
+        Iq = sign(T) * sqrt(Is^2 - Id^2)
+
+        该方法在 Id^2 + Iq^2 = Is^2 的固定电流圆上求最大转矩。这里将进入
+        上层未经 MTPA 变换的 current_ref 作为带转矩方向的 Is 指令，计算 Id 后
+        必须同步重算 Iq；不能只增加 Id 而保留原 Iq，否则总电流会超过 Is 指令。
+        Is 通过独立参数传入，避免高频循环把上一次重算后的 Iq 再次当作 Is，
+        导致电流指令在连续调用中递归衰减。
+
+        优点：
+        能够在给定总电流限制下获得最大转矩，充分利用逆变器电流能力；
+        高电流和强凸极 IPMSM 上通常比低电流近似公式更准确；
+        生成的 Id/Iq 天然位于同一个电流圆上，不依赖后续限幅修正比例。
+        缺点：
+        会改变原 q 轴指令的语义，调用方应把它视为总电流幅值指令；
+        直接转矩模式若仍使用 Iq = T/kt，需进一步补偿磁阻转矩造成的转矩偏差；
+        固定 Ld/Lq/Flux 未考虑磁饱和，实机最优点仍可能与理论值存在偏差。
+
+        为避免低电流时 sqrt(x) - psi 的浮点消减误差，实际使用等价形式：
+        Id = 2*dL*Is^2 / [sqrt(psi^2 + 8*dL^2*Is^2) + psi]
+     */
+    float is_ref  = fabsf(p_foc_status->current_ref);
+    float iq_sign = p_foc_status->current_ref < 0.0f ? -1.0f : 1.0f;
+
+    if (is_ref < FLOAT_EPSILON)
+    {
+        p_foc_status->i_dq_ref.D = 0.0f;
+        p_foc_status->i_dq_ref.Q = 0.0f;
+        return;
+    }
+
+    float mtpa_root = sqrtf(SQ(p_motor_config->Flux) + 8.0f * SQ(l_diff * is_ref));
+    float id_ref    = 2.0f * l_diff * SQ(is_ref) / (mtpa_root + p_motor_config->Flux);
+    float iq_ref    = sqrtf(fmaxf(0.0f, SQ(is_ref) - SQ(id_ref)));
+
+    p_foc_status->i_dq_ref.D = id_ref;
+    p_foc_status->i_dq_ref.Q = iq_sign * iq_ref;
+}
+
+/**
+ * @brief 根据目标扭矩计算MTPA总电流参考值
+ *
+ * @param motor 电机本体配置结构体指针
+ * @param torque_ref 扭矩参考
+ * @return 带扭矩方向的定子电流矢量幅值参考
+ */
+float IPM_MTPA_From_Torque(const Motor_Config_t *motor, float torque_ref)
+{
+    const float torque_abs = fabsf(torque_ref);
+    const float is_sign    = torque_ref < 0.0f ? -1.0f : 1.0f;
+
+    const float flux               = motor->Flux;
+    const float l_diff             = motor->Ld - motor->Lq;
+    const float torque_coefficient = 1.5f * motor->pp;
+
+    if (torque_abs < FLOAT_EPSILON)
+    {
+        return 0.0f;
+    }
+
+    /*
+     * 无凸极效应或凸极效应很弱时退化为表贴式 PMSM：
+     * T = 1.5 * pp * Flux * Iq
+     */
+    if (fabsf(l_diff) < FLOAT_EPSILON)
+    {
+        float denominator = torque_coefficient * flux;
+
+        if (fabsf(denominator) > FLOAT_EPSILON)
+        {
+            return CONSTRAIN(torque_ref / denominator,
+                             -motor->peak_current,
+                             motor->peak_current);
+        }
+        return 0.0f;
+    }
+
+    float is_low  = 0.0f;
+    float is_high = motor->peak_current;
+
+    /*
+     * 检查峰值电流下能够产生的最大 MTPA 扭矩。
+     */
+    float root_high =
+        sqrtf(SQ(flux) + 8.0f * SQ(l_diff * is_high));
+
+    float id_high =
+        2.0f * l_diff * SQ(is_high) / (root_high + flux);
+
+    float iq_high =
+        sqrtf(fmaxf(0.0f, SQ(is_high) - SQ(id_high)));
+
+    float torque_max =
+        torque_coefficient
+        * iq_high
+        * (flux + l_diff * id_high);
+
+    /*
+     * 需求扭矩超过能力时，输出带方向的峰值总电流。
+     */
+    if (torque_abs >= torque_max)
+    {
+        return is_sign * is_high;
+    }
+
+    /*
+     * T(Is) 在正常 IPM MTPA 区域内单调递增，
+     * 使用固定次数二分，执行时间确定。
+     */
+    for (int i = 0; i < 16; i++)
+    {
+        float is_mid = 0.5f * (is_low + is_high);
+
+        float root =
+            sqrtf(SQ(flux) + 8.0f * SQ(l_diff * is_mid));
+
+        float id =
+            2.0f * l_diff * SQ(is_mid) / (root + flux);
+
+        float iq =
+            sqrtf(fmaxf(0.0f, SQ(is_mid) - SQ(id)));
+
+        float torque =
+            torque_coefficient
+            * iq
+            * (flux + l_diff * id);
+
+        if (torque < torque_abs)
+        {
+            is_low = is_mid;
+        }
+        else
+        {
+            is_high = is_mid;
+        }
+    }
+
+    return is_sign * 0.5f * (is_low + is_high);
+}
+
+/**
+ * @brief MTPV计算
+ * 
+ * @param p_motor_config 电机本体配置结构体指针
+ * @param p_foc_status foc运行反馈结构体指针
+ */
+void MTPV_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status)
+{
+    // float l_diff = p_motor_config->L_diff;
+
+    // https://zhuanlan.zhihu.com/p/716381269
+    /*
+        2 * SQ(p_motor_config->Ld) * l_diff * SQ(p_foc_status->i_dq.D) +
+        (4 * SQ(p_motor_config->Ld) * p_motor_config->Flux - 2 * p_motor_config->Ld * p_motor_config->Lq * p_motor_config->Flux) * p_foc_status->i_dq.D +
+        2 * p_motor_config->Ld * SQ(p_motor_config->Flux) -
+        2 * SQ(p_motor_config->Lq) * l_diff * SQ(p_foc_status->i_dq.Q) = 0
+    */
+}
+
 static inline bool foc_send_align_result(int index)
 {
-    Encoder_Config_t *p_encoder_config = &global_config_in_core1.encoder_config[index];
+    Encoder_Config_t *p_encoder_config = &global_config.encoder_config[index];
     FOC_Status_t *p_foc_status         = &global_status.foc_status[index];
 
     switch (p_encoder_config->encoder_type)
     {
-    case Encoder_Type_JODELL:
-        return !ipc_send_message(1, index, MOTOR_CMD_SET_ABS_OFFSET, (uint8_t *)&p_foc_status->rads_encoder_offset_second, sizeof(float), 0);
-
-    case Encoder_Type_TAMAGAWA:
-    case Encoder_Type_HCFA:
-        return !ipc_send_message(1, index, MOTOR_CMD_SET_ABS_OFFSET, (uint8_t *)&p_foc_status->rads_encoder_offset, sizeof(float), 0);
-
-    default:
+        default:
         return true;
     }
 }
@@ -116,7 +324,7 @@ static inline bool foc_send_align_result(int index)
  */
 static inline void foc_encoder_update(int index)
 {
-    Motor_Config_t *p_motor_config     = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config     = &global_config.motor_config[index];
     FOC_Status_t *p_foc_status         = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
 
@@ -229,7 +437,7 @@ static inline void foc_park_update(int index)
  */
 static inline void foc_us_limit_update(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
@@ -262,8 +470,8 @@ static inline void foc_vf_update(int index)
  */
 static inline void foc_if_update(int index)
 {
-    Motor_Config_t *p_motor_config                     = &global_config_in_core1.motor_config[index];
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Motor_Config_t *p_motor_config                     = &global_config.motor_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     FOC_Status_t *p_foc_status                         = &global_status.foc_status[index];
 
@@ -302,8 +510,8 @@ static inline void foc_if_update(int index)
  */
 static void foc_fw_loop_auto_tune(int index)
 {
-    Motor_Config_t *p_motor_config                     = &global_config_in_core1.motor_config[index];
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Motor_Config_t *p_motor_config                     = &global_config.motor_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     FOC_Status_t *p_foc_status                         = &global_status.foc_status[index];
 
@@ -361,9 +569,9 @@ static void foc_fw_loop_auto_tune(int index)
  */
 static inline void foc_op_area_update(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
-    Loop_Controller_Config_t *p_loop_controller_config   = &global_config_in_core1.loop_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config   = &global_config.loop_controller_config[index];
     Loop_Controller_t *p_loop_controller_status          = &global_status.loop_controller_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
@@ -448,8 +656,8 @@ static inline void foc_op_area_update(int index)
  */
 static inline void foc_decoupling_update(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
     if (p_motor_controller_config->current_decoupling_type > Current_Decoupling_Type_None || p_foc_status->overide_decoupling_update)
@@ -521,7 +729,7 @@ static inline void foc_decoupling_update(int index)
  */
 static inline void foc_current_loop_update(int index)
 {
-    Loop_Controller_Config_t *p_loop_controller_config = &global_config_in_core1.loop_controller_config[index];
+    Loop_Controller_Config_t *p_loop_controller_config = &global_config.loop_controller_config[index];
     Loop_Controller_t *p_loop_controller_status        = &global_status.loop_controller_status[index];
     FOC_Status_t *p_foc_status                         = &global_status.foc_status[index];
 
@@ -619,7 +827,7 @@ static inline void foc_limit_circle_update(int index)
  */
 static inline void foc_power_update(int index)
 {
-    Motor_Config_t *p_motor_config             = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config             = &global_config.motor_config[index];
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
     FOC_Status_t *p_foc_status                 = &global_status.foc_status[index];
 
@@ -658,8 +866,8 @@ static inline void foc_power_update(int index)
  */
 static inline void foc_pwm_update(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
-    Core1_Status_t *pstatus                              = &global_status.core1_status;
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
+    Core_Status_t *pstatus                              = &global_status.core_status;
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
@@ -688,7 +896,7 @@ static inline void foc_pwm_update(int index)
     p_motor_basic_status->phase_voltage_out.W = p_motor_basic_status->pwm_duty_raw.W * p_motor_basic_status->v_bus;
 
     motor_pwm_set(index, p_motor_basic_status->pwm_duty_out.U, p_motor_basic_status->pwm_duty_out.V, p_motor_basic_status->pwm_duty_out.W);
-    pstatus->pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(pwmv2_get_counter_value(MOTOR0_BLDCPWM, 3) >> 8);
+    pstatus->pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(get_pwm_counter(index));
 }
 
 /**
@@ -698,9 +906,9 @@ static inline void foc_pwm_update(int index)
  */
 static inline void foc_align_fast_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Encoder_Config_t *p_encoder_config                   = &global_config_in_core1.encoder_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Encoder_Config_t *p_encoder_config                   = &global_config.encoder_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status                   = &global_status.encoder_status[index];
@@ -750,10 +958,6 @@ static inline void foc_align_fast_update_rt(int index)
 
     case 4: // 寻相完成，保存机械角度偏移
         p_foc_status->rads_encoder_offset = p_foc_status->rads_encoder;
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL)
-        {
-            p_foc_status->rads_encoder_offset_second = p_encoder_status->encoder_pos_fractional_second * _2PI;
-        }
 
         if (foc_send_align_result(index))
         {
@@ -777,9 +981,9 @@ static inline void foc_align_fast_update_rt(int index)
  */
 static inline void foc_align_slow_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Encoder_Config_t *p_encoder_config                   = &global_config_in_core1.encoder_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Encoder_Config_t *p_encoder_config                   = &global_config.encoder_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status                   = &global_status.encoder_status[index];
@@ -868,39 +1072,6 @@ static inline void foc_align_slow_update_rt(int index)
                 motor_set_err(index, FAULT_CODE_ALIGN_NO_CONVERGENCE);
             }
         }
-
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL && p_foc_status->align_state == 4)
-        {
-            delta_theta_second     = Rad_Delta(p_encoder_status->encoder_pos_fractional_second * _2PI, p_foc_status->align_initial_second);
-            abs_delta_theta_second = fabsf(delta_theta_second) * encoder_angle_ratio;
-            if (abs_delta_theta_second > DEG_TO_RAD(step_deg - deg_err_threshold) && abs_delta_theta_second < DEG_TO_RAD(step_deg + deg_err_threshold))
-            {
-                // 第一次位移判断：记录运动方向（正方向以主编码器为准）
-                if (p_foc_status->align_dir_detected_second == 0)
-                {
-                    p_foc_status->align_dir_detected_second = (delta_theta_second * delta_theta > 0) ? 1 : -1;
-                }
-
-                p_foc_status->align_initial_second = p_encoder_status->encoder_pos_fractional_second * _2PI;
-                p_foc_status->align_tick           = 0;
-                p_foc_status->align_state          = 4;
-            }
-            else
-            {
-                p_foc_status->align_initial      = p_foc_status->rads_encoder;
-                p_foc_status->align_dir_detected = 0;
-
-                p_foc_status->align_initial_second      = p_encoder_status->encoder_pos_fractional_second * _2PI;
-                p_foc_status->align_tick                = 0;
-                p_foc_status->align_state               = 2;
-                p_foc_status->align_dir_detected_second = 0; // 重试时重置方向检测
-
-                if (++p_foc_status->align_retry_count > max_retry_cnt)
-                {
-                    motor_set_err(index, FAULT_CODE_ALIGN_NO_CONVERGENCE);
-                }
-            }
-        }
         break;
 
     case 4: // 正向开环运行5°
@@ -949,44 +1120,6 @@ static inline void foc_align_slow_update_rt(int index)
                 motor_set_err(index, FAULT_CODE_ALIGN_NO_CONVERGENCE);
             }
         }
-
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL && p_foc_status->align_state == 6)
-        {
-            delta_theta_second     = Rad_Delta(p_encoder_status->encoder_pos_fractional_second * _2PI, p_foc_status->align_initial_second);
-            abs_delta_theta_second = fabsf(delta_theta_second) * encoder_angle_ratio;
-            if (abs_delta_theta_second > DEG_TO_RAD(step_deg - deg_err_threshold) && abs_delta_theta_second < DEG_TO_RAD(step_deg + deg_err_threshold))
-            {
-                // 第二次位移判断：与第一次结果对比，一致时确认方向检测有效
-                int dir_step = (delta_theta_second * delta_theta > 0) ? 1 : -1;
-
-                if (p_foc_status->align_dir_detected_second == dir_step)
-                {
-                    p_foc_status->align_dir_detected_second = dir_step * 2; // 两次一致，确认: 2=正确, -2=需修正
-                }
-                else
-                {
-                    p_foc_status->align_dir_detected_second = 0; // 两次不一致，放弃修正
-                }
-
-                p_foc_status->align_tick  = 0;
-                p_foc_status->align_state = 6;
-            }
-            else
-            {
-                p_foc_status->align_initial      = p_foc_status->rads_encoder;
-                p_foc_status->align_dir_detected = 0;
-
-                p_foc_status->align_initial_second      = p_encoder_status->encoder_pos_fractional_second * _2PI;
-                p_foc_status->align_tick                = 0;
-                p_foc_status->align_state               = 2;
-                p_foc_status->align_dir_detected_second = 0; // 重试时重置方向检测
-
-                if (++p_foc_status->align_retry_count > max_retry_cnt)
-                {
-                    motor_set_err(index, FAULT_CODE_ALIGN_NO_CONVERGENCE);
-                }
-            }
-        }
         break;
 
     case 6: // 判断寻相结果
@@ -995,14 +1128,11 @@ static inline void foc_align_slow_update_rt(int index)
         {
             int corrected_dir = -p_motor_config->motor_dir;
 
-            if (!ipc_send_message(1, index, MOTOR_CMD_SET_MOTOR_DIR, (uint8_t *)&corrected_dir, sizeof(corrected_dir), 0))
-            {
-                p_motor_config->motor_dir = corrected_dir;
+            p_motor_config->motor_dir = corrected_dir;
 
-                // 使用修正后的方向重新寻相
-                p_foc_status->align_state        = 0;
-                p_foc_status->align_dir_detected = 0;
-            }
+            // 使用修正后的方向重新寻相
+            p_foc_status->align_state        = 0;
+            p_foc_status->align_dir_detected = 0;
             break;
         }
 
@@ -1011,30 +1141,6 @@ static inline void foc_align_slow_update_rt(int index)
         {
             p_foc_status->align_initial = p_foc_status->rads_encoder;
             p_foc_status->align_state   = 2;
-            break;
-        }
-
-        // 若两次位移判断均检测到电机方向与配置不符，自动修正motor_dir并通知core0，然后重新寻相
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL && p_foc_status->align_dir_detected_second == -2)
-        {
-            int corrected_dir = -p_encoder_config->encoder_abs_dir;
-
-            if (!ipc_send_message(1, index, MOTOR_CMD_SET_SECOND_ENCODER_DIR, (uint8_t *)&corrected_dir, sizeof(corrected_dir), 0))
-            {
-                p_encoder_config->encoder_abs_dir = corrected_dir;
-
-                // 使用修正后的方向重新寻相
-                p_foc_status->align_state               = 0;
-                p_foc_status->align_dir_detected_second = 0;
-            }
-            break;
-        }
-
-        // 两次方向判断不一致，放弃本次寻相结果，回到state 2重试
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL && p_foc_status->align_dir_detected_second == 0)
-        {
-            p_foc_status->align_initial_second = p_encoder_status->encoder_pos_fractional_second * _2PI;
-            p_foc_status->align_state          = 2;
             break;
         }
 
@@ -1065,23 +1171,6 @@ static inline void foc_align_slow_update_rt(int index)
             break;
         }
 
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL)
-        {
-            switch (p_motor_config->motor_struct)
-            {
-            case Motor_Struct_Linear:
-                p_foc_status->rads_encoder_offset_second = Normalize_Rad(p_encoder_status->encoder_pos_fractional_second * _2PI - p_foc_status->theta_openloop);
-                break;
-
-            case Motor_Struct_Rotary:
-                p_foc_status->rads_encoder_offset_second = Normalize_Rad(p_encoder_status->encoder_pos_fractional_second * _2PI - p_foc_status->theta_openloop / p_motor_config->pp);
-                break;
-
-            default:
-                break;
-            }
-        }
-
         if (foc_send_align_result(index))
         {
             p_motor_status->is_aligned   = 1;
@@ -1104,9 +1193,9 @@ static inline void foc_align_slow_update_rt(int index)
  */
 static inline void foc_align_bisection_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config                       = &global_config_in_core1.motor_config[index];
-    Encoder_Config_t *p_encoder_config                   = &global_config_in_core1.encoder_config[index];
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
+    Encoder_Config_t *p_encoder_config                   = &global_config.encoder_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
@@ -1122,7 +1211,6 @@ static inline void foc_align_bisection_update_rt(int index)
     const float min_correction     = DEG_TO_RAD(0.1f);
     float theta_threshold          = DEG_TO_RAD(p_motor_controller_config->align_threshold);
     uint32_t rand                  = 0;
-    hpm_stat_t stat;
 
     float delta_theta     = 0;
     float abs_delta_theta = 0;
@@ -1130,20 +1218,16 @@ static inline void foc_align_bisection_update_rt(int index)
     switch (p_foc_status->align_state)
     {
     case 0: // 起始角度随机获取
-        stat = rng_rand_wait(HPM_RNG, &rand, 4);
-        if (stat == status_success)
-        {
-            p_foc_status->run_state              = FOC_VF_OpenLoop;
-            p_foc_status->u_dq_ref.D             = 0;
-            p_foc_status->u_dq_ref.Q             = 0;
-            p_foc_status->theta_openloop         = 0;
-            p_foc_status->align_tick             = 0;
-            p_foc_status->align_state            = 1;
-            p_foc_status->align_initial          = p_foc_status->rads_encoder;
-            p_foc_status->align_offset_candidate = (float)rand / (float)UINT32_MAX * _2PI;
-            p_foc_status->align_correction       = initial_correction;
-            p_foc_status->rads_encoder_offset    = 0;
-        }
+        p_foc_status->run_state              = FOC_VF_OpenLoop;
+        p_foc_status->u_dq_ref.D             = 0;
+        p_foc_status->u_dq_ref.Q             = 0;
+        p_foc_status->theta_openloop         = 0;
+        p_foc_status->align_tick             = 0;
+        p_foc_status->align_state            = 1;
+        p_foc_status->align_initial          = p_foc_status->rads_encoder;
+        p_foc_status->align_offset_candidate = (float)rand / (float)UINT32_MAX * _2PI;
+        p_foc_status->align_correction       = initial_correction;
+        p_foc_status->rads_encoder_offset    = 0;
         break;
 
     case 1: // 设置初始位置反馈
@@ -1274,23 +1358,6 @@ static inline void foc_align_bisection_update_rt(int index)
             break;
         }
 
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL)
-        {
-            switch (p_motor_config->motor_struct)
-            {
-            case Motor_Struct_Linear:
-                p_foc_status->rads_encoder_offset_second = Normalize_Rad(p_encoder_status->encoder_pos_fractional_second * _2PI - p_foc_status->theta_openloop);
-                break;
-
-            case Motor_Struct_Rotary:
-                p_foc_status->rads_encoder_offset_second = Normalize_Rad(p_encoder_status->encoder_pos_fractional_second * _2PI - p_foc_status->theta_openloop / p_motor_config->pp);
-                break;
-
-            default:
-                break;
-            }
-        }
-
         if (foc_send_align_result(index))
         {
             p_motor_status->is_aligned   = 1;
@@ -1313,8 +1380,8 @@ static inline void foc_align_bisection_update_rt(int index)
  */
 static inline void foc_align_hfi_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config     = &global_config_in_core1.motor_config[index];
-    Encoder_Config_t *p_encoder_config = &global_config_in_core1.encoder_config[index];
+    Motor_Config_t *p_motor_config     = &global_config.motor_config[index];
+    Encoder_Config_t *p_encoder_config = &global_config.encoder_config[index];
     Motor_Status_t *p_motor_status     = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status         = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
@@ -1358,23 +1425,6 @@ static inline void foc_align_hfi_update_rt(int index)
             break;
         }
 
-        if (p_encoder_config->encoder_type == Encoder_Type_JODELL)
-        {
-            switch (p_motor_config->motor_struct)
-            {
-            case Motor_Struct_Linear:
-                p_foc_status->rads_encoder_offset_second = Normalize_Rad(p_encoder_status->encoder_pos_fractional_second * _2PI - p_foc_status->theta_hfi);
-                break;
-
-            case Motor_Struct_Rotary:
-                p_foc_status->rads_encoder_offset_second = Normalize_Rad(p_encoder_status->encoder_pos_fractional_second * _2PI - p_foc_status->theta_hfi / p_motor_config->pp);
-                break;
-
-            default:
-                break;
-            }
-        }
-
         if (foc_send_align_result(index))
         {
             p_foc_status->run_state    = FOC_CloseLoop;
@@ -1395,7 +1445,7 @@ static inline void foc_align_hfi_update_rt(int index)
  */
 void foc_align_update_rt(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     switch (p_motor_controller_config->align_method)
     {
@@ -1429,7 +1479,7 @@ void foc_align_update_rt(int index)
  */
 void foc_rs_identify_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config     = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config     = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status     = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status         = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
@@ -1517,10 +1567,8 @@ void foc_rs_identify_update_rt(int index)
             break;
         }
         p_foc_status->rs_identify = rs_identify;
-        if (!ipc_send_message(1, index, MOTOR_CMD_SET_RS, (uint8_t *)&p_foc_status->rs_identify, sizeof(p_foc_status->rs_identify), 0))
-        {
-            p_foc_status->identify_state = 4;
-        }
+        p_foc_status->identify_state = 4;
+        p_motor_config->Rs = p_foc_status->rs_identify;
     }
     break;
 
@@ -1730,8 +1778,8 @@ static bool foc_ls_scan_finish(int index, DQ_Axis_t *l_identify)
  */
 void foc_ls_identify_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
-    HFI_Config_t *p_hfi_config     = &global_config_in_core1.hfi_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
+    HFI_Config_t *p_hfi_config     = &global_config.hfi_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status     = &global_status.foc_status[index];
     HFI_Status_t *p_hfi_status     = &global_status.hfi_status[index];
@@ -1814,11 +1862,10 @@ void foc_ls_identify_update_rt(int index)
         }
         else
         {
-            if (!ipc_send_message(1, index, MOTOR_CMD_SET_LS, (uint8_t *)&p_foc_status->l_identify, sizeof(DQ_Axis_t), 0))
-            {
-                p_motor_status->identify_done = 1;
-                p_foc_status->identify_state  = 4;
-            }
+            p_motor_status->identify_done = 1;
+            p_foc_status->identify_state  = 4;
+            p_motor_config->Ld = p_foc_status->l_identify.D;
+            p_motor_config->Lq = p_foc_status->l_identify.Q;
         }
         break;
 
@@ -1834,7 +1881,7 @@ void foc_ls_identify_update_rt(int index)
  */
 void foc_flux_identify_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status     = &global_status.foc_status[index];
 
@@ -1898,10 +1945,8 @@ void foc_flux_identify_update_rt(int index)
     break;
 
     case 2: // 应用辨识结果
-        if (!ipc_send_message(1, index, MOTOR_CMD_SET_FLUX, (uint8_t *)&p_foc_status->flux_identify, sizeof(p_foc_status->flux_identify), 0))
-        {
-            p_foc_status->identify_state = 3;
-        }
+        p_foc_status->identify_state = 3;
+        p_motor_config->Flux = p_foc_status->flux_identify;
         break;
 
     case 3: // 磁链辨识完成
@@ -1934,7 +1979,7 @@ void foc_flux_identify_update_rt(int index)
  */
 void foc_pp_identify_update_rt(int index)
 {
-    Motor_Config_t *p_motor_config     = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config     = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status     = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status         = &global_status.foc_status[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
@@ -2109,21 +2154,17 @@ void foc_pp_identify_update_rt(int index)
             corrected_dir = -corrected_dir;
         }
 
-        if (!ipc_send_message(1, index, MOTOR_CMD_SET_MOTOR_DIR, (uint8_t *)&corrected_dir, sizeof(corrected_dir), 0))
-        {
-            p_foc_status->identify_state = 7;
-        }
+        p_foc_status->identify_state = 7;
+        p_motor_config->motor_dir = corrected_dir;
         break;
 
     case 7: // 应用极对数辨识结果
         if (++p_foc_status->identify_tick > MS_TO_RT_TICKS(1))
         {
-            if (!ipc_send_message(1, index, MOTOR_CMD_SET_PP, (uint8_t *)&p_foc_status->pp_identify, sizeof(p_foc_status->pp_identify), 0))
-            {
-                p_motor_status->identify_done = 1;
-                p_foc_status->identify_tick   = 0;
-                p_foc_status->identify_state  = 8;
-            }
+            p_motor_status->identify_done = 1;
+            p_foc_status->identify_tick   = 0;
+            p_foc_status->identify_state  = 8;
+            p_motor_config->pp = p_foc_status->pp_identify;
         }
         break;
 
@@ -2149,7 +2190,7 @@ void foc_update_rt(int index)
  */
 void foc_update_frt(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     FOC_Status_t *p_foc_status     = &global_status.foc_status[index];
     HFI_Status_t *p_hfi_status     = &global_status.hfi_status[index];
 
@@ -2205,9 +2246,6 @@ void foc_update_frt(int index)
             // HFI已经在低速下建立稳定跟踪,但此时还无法区分跟踪的是N极还是S极,切换到极性辨识流程
             p_foc_status->run_state = FOC_HFI_Identify;
         }
-        global_status.core1_debug_value[0] = 0;
-        global_status.core1_debug_value[1] = p_hfi_pll->err;
-        global_status.core1_debug_value[2] = p_hfi_pll->we_f;
         break;
 
     case FOC_HFI_Identify:
@@ -2222,9 +2260,6 @@ void foc_update_frt(int index)
         {
             p_foc_status->run_state = FOC_HFI_CloseLoop;
         }
-        global_status.core1_debug_value[0] = 1;
-        global_status.core1_debug_value[1] = p_hfi_pll->err;
-        global_status.core1_debug_value[2] = p_hfi_pll->we_f;
         break;
 
     case FOC_HFI_CloseLoop:
@@ -2238,9 +2273,6 @@ void foc_update_frt(int index)
         foc_limit_circle_update(index);
         foc_power_update(index);
         foc_pwm_update(index);
-        global_status.core1_debug_value[0] = 2;
-        global_status.core1_debug_value[1] = p_hfi_pll->err;
-        global_status.core1_debug_value[2] = p_hfi_pll->we_f;
         break;
 #endif
 
@@ -2269,7 +2301,7 @@ void foc_update_frt(int index)
         break;
 #else
     case FOC_CloseLoop: {
-        HFI_Config_t *p_hfi_config = &global_config_in_core1.hfi_config[index];
+        HFI_Config_t *p_hfi_config = &global_config.hfi_config[index];
         const int pulse_ticks      = US_TO_HRT_TICKS(p_hfi_config->pole_identify_pulse_us);
         const int interval_ticks   = US_TO_HRT_TICKS(p_hfi_config->pole_identify_interval_us);
         const int half_cycle_ticks = pulse_ticks + interval_ticks;
@@ -2394,7 +2426,7 @@ void foc_controller_reset(int index)
  */
 static float foc_torque_from_current(int index, float current)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     float is                       = fabsf(current);
 
     if (is <= FLOAT_EPSILON)
@@ -2433,7 +2465,7 @@ static float foc_torque_from_current(int index, float current)
  */
 void foc_calculate_torque_limits(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
 
     p_motor_status->rated_torque = foc_torque_from_current(index, p_motor_config->rated_current);
@@ -2449,7 +2481,7 @@ void foc_calculate_torque_limits(int index)
  */
 void foc_controller_set_manual_mode(int index, float id_ref, float iq_ref)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     FOC_Status_t *p_foc_status     = &global_status.foc_status[index];
 
     if ((p_foc_status->run_state & HFI_RUNNING_MASK) == 0)
@@ -2537,7 +2569,7 @@ float foc_get_current_fb(int index)
  */
 void foc_set_torque_ref(int index, float torque_ref)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
     FOC_Status_t *p_foc_status     = &global_status.foc_status[index];
 

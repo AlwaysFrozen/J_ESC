@@ -1,5 +1,5 @@
 /**
- * @file Sine_Generator.c
+ * @file sine_generator.c
  * @author jinchl (jcl709905683@gmail.com)
  * @brief Sine wave generator with runtime adjustable parameters
  * @version 0.1

@@ -11,7 +11,8 @@
 
 
 #pragma once
-#include "../math/my_math.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 #define ENCODER_SPECIAL_FUNCTION_RESET_ERROR (1)
 #define ENCODER_SPECIAL_FUNCTION_RESET_ABS   (2)
@@ -31,9 +32,9 @@ typedef void (*encoder_index_callback)(int index);
 typedef enum
 {
     Encoder_Type_ABZ,
-    Encoder_Type_JODELL,
     Encoder_Type_TAMAGAWA,
     Encoder_Type_HCFA,
+	Encoder_Type_SPI_AS5048A,
     Encoder_Type_MAX
 } Encoder_Type_t;
 

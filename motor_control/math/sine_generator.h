@@ -11,6 +11,9 @@
 
 
 #pragma once
+
+#include <math.h>
+
 #include "utils.h"
 
 typedef struct

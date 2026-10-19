@@ -23,7 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "global.h"
-#include "realtime_callback.h"
+#include "realtime.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

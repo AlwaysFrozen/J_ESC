@@ -1,5 +1,5 @@
 /**
- * @file Filter.c
+ * @file filter.c
  * @author jinchl (jcl709905683@gmail.com)
  * @brief FIR/IIR滤波器设计和运行实现。
  * @version 0.2

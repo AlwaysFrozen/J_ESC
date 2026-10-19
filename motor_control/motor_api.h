@@ -11,14 +11,8 @@
 
 
 #pragma once
-#include "../math/my_math.h"
+#include "my_math.h"
 #include "motor.h"
-
-/** 更新弹簧辨识参数；调用方须防止控制中断读取到一半更新的数据。 */
-bool motor_set_spring_cali(int index, const Spring_Cali_t *cali);
-
-/** 当前闭环运动所需的弹簧保持力，辨识期间及未使能补偿时为零。 */
-float motor_get_spring_compensation(int index);
 
 /**
  * @brief 判断是否是旋转电机

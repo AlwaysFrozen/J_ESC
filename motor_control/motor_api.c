@@ -15,56 +15,6 @@
 #include <stddef.h>
 
 
-bool motor_set_spring_cali(int index, const Spring_Cali_t *cali)
-{
-    if (index < 0 || index >= SUPPORTED_AXIS_NUMBER || cali == NULL)
-    {
-        return false;
-    }
-
-    spring_cali_data[index] = *cali;
-    return true;
-}
-
-float motor_get_spring_compensation(int index)
-{
-    if (index < 0 || index >= SUPPORTED_AXIS_NUMBER)
-    {
-        return 0.0f;
-    }
-
-    Motor_Controller_Config_t *config = &global_config_in_core1.motor_controller_config[index];
-    Motor_Status_t *status            = &global_status.motor_status[index];
-    Axis_Mode_t axis_mode             = global_status.axis_status[index].axis_mode;
-    const Spring_Cali_t *cali         = &spring_cali_data[index];
-
-    if (!config->spring_compensation_enable || !cali->valid
-        || (axis_mode >= Axis_Mode_RS_IDENTIFY && axis_mode <= Axis_Mode_Spring_IDENTIFY))
-    {
-        return 0.0f;
-    }
-
-    switch (status->motor_ctrl_mode)
-    {
-    case MCM_Speed:
-    case MCM_Pos:
-    case MCM_Ol_Force:
-    case MCM_Cl_Force:
-    case MCM_Impedance:
-    case MCM_Admittance:
-    case MCM_Teaching:
-    case MCM_CSV:
-    case MCM_CSP:
-    case MCM_Vel_Sweep:
-    case MCM_Pos_Sweep: {
-        float torque = cali->k * status->pos_fb + cali->b;
-        return isfinite(torque) ? torque : 0.0f;
-    }
-    default:
-        return 0.0f;
-    }
-}
-
 /**
  * @brief 判断是否是旋转电机
  *
@@ -73,7 +23,7 @@ float motor_get_spring_compensation(int index)
  */
 bool is_rotary_motor(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
 
     return p_motor_config->motor_struct == Motor_Struct_Rotary;
 }
@@ -87,7 +37,7 @@ bool is_rotary_motor(int index)
  */
 float axis_units_to_motor_units(int index, float units)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
 
     switch (p_motor_config->motor_struct)
     {
@@ -111,7 +61,7 @@ float axis_units_to_motor_units(int index, float units)
  */
 float motor_units_to_axis_units(int index, float units)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
 
     switch (p_motor_config->motor_struct)
     {
@@ -134,7 +84,7 @@ float motor_units_to_axis_units(int index, float units)
  */
 float cfg_peak_speed_to_motor_speed(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
 
     switch (p_motor_config->motor_struct)
     {
@@ -276,7 +226,7 @@ bool motor_set_current(int index, float current)
  */
 void motor_set_current_limit(int index, float max_current, float min_current)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
 
     max_current = CONSTRAIN(max_current, 0, p_motor_config->peak_current);
@@ -293,7 +243,7 @@ void motor_set_current_limit(int index, float max_current, float min_current)
  */
 void motor_reset_current_limit(int index)
 {
-    Motor_Config_t *p_motor_config = &global_config_in_core1.motor_config[index];
+    Motor_Config_t *p_motor_config = &global_config.motor_config[index];
     Motor_Status_t *p_motor_status = &global_status.motor_status[index];
 
     p_motor_status->positive_current_limit = p_motor_config->peak_current;
@@ -307,7 +257,7 @@ void motor_reset_current_limit(int index)
  */
 void motor_reset_current_control(int index)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Loop_Controller_t *p_loop_controller_status          = &global_status.loop_controller_status[index];
 
     switch (p_motor_controller_config->motor_controller_type)
@@ -904,7 +854,7 @@ bool motor_set_csv(int index, float speed, int tor_limit, int pos_tor_limit, int
  */
 bool motor_set_csp(int index, float pos, float vel_ff, float acc_ff, float speed_limit, int tor_limit, int pos_tor_limit, int neg_tor_limit)
 {
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config_in_core1.motor_controller_config[index];
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
     Motor_Status_t *p_motor_status                       = &global_status.motor_status[index];
 
     if (!p_motor_status->is_calibrated || !p_motor_status->is_enabled || p_motor_status->is_error || !p_motor_status->is_aligned || p_motor_status->is_braked)
