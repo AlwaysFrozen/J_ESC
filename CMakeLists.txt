@@ -47,6 +47,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/inverter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/realtime.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/rand.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/dc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/foc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/hfi.c

@@ -23,29 +23,59 @@
 #include "encoder.h"
 #include "hfi.h"
 #include "inverter.h"
+#include "rand.h"
 
 #if defined(HFI_DEBUG) && defined(FAST_CURRENT_LOOP_ENABLE)
 #error "HFI_DEBUG cannot be used with FAST_CURRENT_LOOP_ENABLE"
 #endif
 
-#ifndef FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S
-/*
- * ADC电流采样到新HFI电压在PWM reload生效的延迟。
+/**
+ * @brief 电流采样保持结束时刻相对触发点的近似偏移，单位 s
  *
- * ADC时钟为50MHz。单通道采样保持时间为20个周期，即0.40us；
- * 16位转换时间为21个周期，即0.42us；每通道合计0.82us。
- * 四通道的采样保持完成时刻依次约为0.40、1.22、2.04、2.86us，
- * 全部转换完成约为3.28us。
- *
- * PWM=100kHz、HRT=50kHz时，PWM每10us reload一次：
- *   延迟约为7.14~9.60us；若错过10us reload，则为17.14~19.60us。
- *
- * PWM=50kHz、HRT=50kHz时，PWM每20us reload一次：
- *   延迟约为17.14~19.60us。
+ * ADC时钟为84MHz / 4 = 21MHz，采样15周期，12位转换12周期。
+ * ADC1/2/3同步采样，Rank 1为三相电流，Rank 2为三相端电压。
+ * 完整注入序列耗时2 * (15 + 12) / 21MHz = 2.571429us，
+ * 但电流在Rank 1采样结束时已保持，其时刻为15 / 21MHz = 0.714286us，
+ * 不能用整个序列耗时的一半代替。此处忽略触发同步/仲裁延迟，
+ * 实测标定可使用下方FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S覆盖总延时。
  */
-// #define FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S (8.37e-6f)
-#define FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S (1.8e-5f)
+#define FOC_LS_ADC_CURRENT_SAMPLE_OFFSET_S (BOARD_ADC_CURRENT_SAMPLE_HOLD_TIME)
+
+/**
+ * @brief HFI电感辨识使用的“电流采样到新注入电压生效”纯传输延时
+ *
+ * 由电流环固定延时模型推导，保证两者随 SUMODE 和 PWM 频率同步变化：
+ *
+ *     delta = current_loop_delay_calculate() - 0.5 * BOARD_HRT_DT - FOC_LS_ADC_CURRENT_SAMPLE_OFFSET_S
+ *
+ * current_loop_delay_calculate() = 等效采样时刻至PWM锁存事件 + 半个控制周期。
+ * 其中半个控制周期是把PWM零阶保持近似为纯延时的项；foc_ls_delayed_response()
+ * 已按“旧电压作用 delta、新电压作用 T-delta”精确建模零阶保持，故此处必须扣除，
+ * 否则重复计入。该模型以触发点为采样时刻，因此再扣除ADC采样保持等效偏移。
+ *
+ * PWM=20kHz、ADC=21MHz 时的取值（DSDU需同时将HRT配置为40kHz）：
+ *   SSSU: 75us - 25us - 0.714286us = 49.285714us（HRT=20kHz）
+ *   DSSU: 87.5us - 25us - 0.714286us = 61.785714us（HRT=20kHz；上周期B与本周期A均值，等效采样时刻 -T/4）
+ *   DSDU: 37.5us - 12.5us - 0.714286us = 24.285714us（HRT=40kHz）
+ *
+ * foc_ls_rl_solve() 要求 2*delta < BOARD_HRT_DT * hfi div，否则辨识失败，对应最小 div：
+ *   SSSU >= 2，DSSU >= 3，DSDU >= 2。
+ *
+ * DSSU 的两点均值并不严格满足模型的单点采样假设，取值为近似值。
+ * 可在编译选项中定义同名宏 FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S（单位 s）覆盖，用于实测标定。
+ *
+ * @param index 电机编号
+ * @return float 纯传输延时，单位 s
+ */
+static inline float foc_ls_hfi_sample_to_pwm_delay(int index)
+{
+#ifdef FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S
+    (void)index;
+    return FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S;
+#else
+    return current_loop_delay_calculate(index) - 0.5f * BOARD_HRT_DT - FOC_LS_ADC_CURRENT_SAMPLE_OFFSET_S;
 #endif
+}
 
 #define FOC_LS_SCAN_BIN_COUNT      (72U)
 #define FOC_LS_EXTREME_BIN_COUNT   (5U)
@@ -72,18 +102,6 @@ static inline bool is_MTPA_allowed(int index)
     Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
 
     return p_motor_controller_config->mtpa_enable && p_motor_config->saliency_ratio > FOC_MTPA_SALIENCY_RATE;
-#else
-    return false;
-#endif
-}
-
-static inline bool is_FW_allowed(int index)
-{
-#ifndef FAST_CURRENT_LOOP_ENABLE
-    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
-    FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
-
-    return p_motor_controller_config->fw_enable && p_foc_status->us_out_rate_raw > FOC_FW_VOLTAGE_RATE;
 #else
     return false;
 #endif
@@ -303,6 +321,18 @@ void MTPV_Cal(Motor_Config_t *p_motor_config, FOC_Status_t *p_foc_status)
         2 * p_motor_config->Ld * SQ(p_motor_config->Flux) -
         2 * SQ(p_motor_config->Lq) * l_diff * SQ(p_foc_status->i_dq.Q) = 0
     */
+}
+
+static inline bool is_FW_allowed(int index)
+{
+#ifndef FAST_CURRENT_LOOP_ENABLE
+    Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
+    FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
+
+    return p_motor_controller_config->fw_enable && p_foc_status->us_out_rate_raw > FOC_FW_VOLTAGE_RATE;
+#else
+    return false;
+#endif
 }
 
 static inline bool foc_send_align_result(int index)
@@ -867,7 +897,6 @@ static inline void foc_power_update(int index)
 static inline void foc_pwm_update(int index)
 {
     Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
-    Core_Status_t *pstatus                              = &global_status.core_status;
     Motor_Basic_Status_t *p_motor_basic_status           = &global_status.motor_basic_status[index];
     FOC_Status_t *p_foc_status                           = &global_status.foc_status[index];
 
@@ -896,7 +925,7 @@ static inline void foc_pwm_update(int index)
     p_motor_basic_status->phase_voltage_out.W = p_motor_basic_status->pwm_duty_raw.W * p_motor_basic_status->v_bus;
 
     motor_pwm_set(index, p_motor_basic_status->pwm_duty_out.U, p_motor_basic_status->pwm_duty_out.V, p_motor_basic_status->pwm_duty_out.W);
-    pstatus->pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(get_pwm_counter(index));
+    pwm_update_delay_record(index);
 }
 
 /**
@@ -1218,16 +1247,19 @@ static inline void foc_align_bisection_update_rt(int index)
     switch (p_foc_status->align_state)
     {
     case 0: // 起始角度随机获取
-        p_foc_status->run_state              = FOC_VF_OpenLoop;
-        p_foc_status->u_dq_ref.D             = 0;
-        p_foc_status->u_dq_ref.Q             = 0;
-        p_foc_status->theta_openloop         = 0;
-        p_foc_status->align_tick             = 0;
-        p_foc_status->align_state            = 1;
-        p_foc_status->align_initial          = p_foc_status->rads_encoder;
-        p_foc_status->align_offset_candidate = (float)rand / (float)UINT32_MAX * _2PI;
-        p_foc_status->align_correction       = initial_correction;
-        p_foc_status->rads_encoder_offset    = 0;
+        if (rand_generate(&rand))
+        {
+            p_foc_status->run_state              = FOC_VF_OpenLoop;
+            p_foc_status->u_dq_ref.D             = 0;
+            p_foc_status->u_dq_ref.Q             = 0;
+            p_foc_status->theta_openloop         = 0;
+            p_foc_status->align_tick             = 0;
+            p_foc_status->align_state            = 1;
+            p_foc_status->align_initial          = p_foc_status->rads_encoder;
+            p_foc_status->align_offset_candidate = (float)rand / (float)UINT32_MAX * _2PI;
+            p_foc_status->align_correction       = initial_correction;
+            p_foc_status->rads_encoder_offset    = 0;
+        }
         break;
 
     case 1: // 设置初始位置反馈
@@ -1699,7 +1731,7 @@ static void foc_ls_scan_accumulate(int index, float us_response, float Rs, float
     DQ_Axis_t i_dq_response;
     Park_Transmission(&p_hfi_status->iab_input, &i_dq_response, theta);
     float is_response = fabsf(i_dq_response.D);
-    float l           = foc_ls_rl_solve(us_response, is_response, Rs, period, FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S);
+    float l           = foc_ls_rl_solve(us_response, is_response, Rs, period, foc_ls_hfi_sample_to_pwm_delay(index));
     if (l <= FLOAT_MIN)
     {
         return;
@@ -1815,7 +1847,7 @@ void foc_ls_identify_update_rt(int index)
         {
             if (++p_foc_status->identify_tick > MS_TO_RT_TICKS(20) && us_response > FLOAT_EPSILON && is_response > FLOAT_EPSILON)
             {
-                float l = foc_ls_rl_solve(us_response, is_response, p_motor_config->Rs, dt, FOC_LS_HFI_SAMPLE_TO_PWM_DELAY_S);
+                float l = foc_ls_rl_solve(us_response, is_response, p_motor_config->Rs, dt, foc_ls_hfi_sample_to_pwm_delay(index));
                 if (l <= FLOAT_MIN)
                 {
                     motor_set_err(index, FAULT_CODE_LS_IDENTIFY);

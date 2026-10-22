@@ -881,6 +881,14 @@ void motor_update_frt(int index);
 float current_loop_delay_calculate(int index);
 
 /**
+ * @brief 计算 PWM 影子寄存器更新时间
+ *
+ * @param index 电机编号
+ * @return 更新时间延时，单位 us
+ */
+void pwm_update_delay_record(int index);
+
+/**
  * @brief 设置电机三相占空比
  * 
  * @param index 电机编号

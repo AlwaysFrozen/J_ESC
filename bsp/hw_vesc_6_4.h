@@ -52,6 +52,13 @@
 #define BOARD_HRT_TIM_RELOAD                        (BOARD_HRT_TIM_FREQ / (2U * BOARD_HRT_FREQ))
 #define BOARD_ADC_TRIGGER_COMPARE                   (1U)
 
+/* Keep in sync with Core/Src/adc.c: PCLK2/4, 15-cycle sampling, 12-bit,
+ * two injected ranks; ADC1/2/3 run simultaneously. Times are in seconds.
+ * Current is sampled at rank 1; its hold instant excludes trigger latency. */
+#define BOARD_ADC_CLK_FREQ                          (BOARD_APB2_FREQ / 4U)
+#define BOARD_ADC_SAMPLING_CYCLES                   (15.0f)
+#define BOARD_ADC_SAMPLE_TIME                       (2.0f * (BOARD_ADC_SAMPLING_CYCLES + 12.0f) / BOARD_ADC_CLK_FREQ)
+#define BOARD_ADC_CURRENT_SAMPLE_HOLD_TIME          (BOARD_ADC_SAMPLING_CYCLES / BOARD_ADC_CLK_FREQ)
 #define BOARD_ADC_CALI_CNT                          (BOARD_HRT_FREQ / 10)
 #define BOARD_ADC_CALI_COFFCIENT                    (0.01f)
 #define BOARD_ADC_RESOLUTION                        (4095.0f)

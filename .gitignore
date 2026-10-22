@@ -1,0 +1,29 @@
+# Build directories
+/build/
+/cmake-build-*/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+/.cmake/
+CMakeUserPresets.json
+
+# Ninja generated files
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+
+# Compiler intermediate files and firmware outputs
+*.o
+*.obj
+*.d
+*.su
+*.elf
+*.hex
+*.bin
+*.map
+*.lst

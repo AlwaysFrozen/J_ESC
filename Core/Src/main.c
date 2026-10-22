@@ -21,6 +21,7 @@
 #include "adc.h"
 #include "can.h"
 #include "dma.h"
+#include "rng.h"
 #include "spi.h"
 #include "tim.h"
 #include "usb_device.h"
@@ -113,6 +114,7 @@ int main(void)
   MX_TIM8_Init();
   MX_USB_DEVICE_Init();
   MX_TIM2_Init();
+  MX_RNG_Init();
   /* USER CODE BEGIN 2 */
   // stop time when debug
   DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
@@ -130,8 +132,9 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    none_realtime_callback();
+
     /* USER CODE BEGIN 3 */
+    none_realtime_callback();
   }
   /* USER CODE END 3 */
 }

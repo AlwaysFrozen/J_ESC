@@ -243,7 +243,6 @@ static void dc_power_update(int index)
 static void dc_pwm_update(int index, int dt_comp_enable)
 {
     Motor_Basic_Status_t *p_motor_basic_status = &global_status.motor_basic_status[index];
-    Core_Status_t *pstatus                     = &global_status.core_status;
     FOC_Status_t *p_foc_status                 = &global_status.foc_status[index];
 
     float half_uq_rate = p_foc_status->u_dq_out.Q / p_foc_status->us_max * 0.5f;
@@ -280,7 +279,7 @@ static void dc_pwm_update(int index, int dt_comp_enable)
     p_motor_basic_status->phase_voltage_out.W = p_motor_basic_status->pwm_duty_raw.W * p_motor_basic_status->v_bus;
 
     motor_pwm_set(index, p_motor_basic_status->pwm_duty_out.U, p_motor_basic_status->pwm_duty_out.V, p_motor_basic_status->pwm_duty_out.W);
-    pstatus->pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(get_pwm_counter(index));
+    pwm_update_delay_record(index);
 }
 
 /**

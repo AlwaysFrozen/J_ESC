@@ -98,7 +98,14 @@ static inline void speed_m_method_update(int index)
     float pos_delta = p_encoder_status->encoder_pos - p_encoder_status->encoder_pos_last;
     float speed     = pos_delta / BOARD_RT_DT;
 
-    LPF_F32(&p_encoder_status->encoder_speed, speed, p_encoder_config->velocity_solver_band_width, BOARD_RT_DT);
+    if (p_encoder_config->velocity_solver_band_width > FLOAT_EPSILON)
+    {
+        LPF_F32(&p_encoder_status->encoder_speed, speed, p_encoder_config->velocity_solver_band_width, BOARD_RT_DT);
+    }
+    else
+    {
+        p_encoder_status->encoder_speed = speed;
+    }
     p_encoder_status->encoder_pos_last = p_encoder_status->encoder_pos;
 }
 
@@ -115,7 +122,14 @@ static inline void acc_m_method_update(int index)
     float speed_delta = p_encoder_status->encoder_speed - p_encoder_status->encoder_speed_last;
     float acc         = speed_delta / BOARD_RT_DT;
 
-    LPF_F32(&p_encoder_status->encoder_acc, acc, p_encoder_config->velocity_solver_band_width, BOARD_RT_DT);
+    if (p_encoder_config->velocity_solver_band_width > 0.0f)
+    {
+        LPF_F32(&p_encoder_status->encoder_acc, acc, p_encoder_config->velocity_solver_band_width, BOARD_RT_DT);
+    }
+    else
+    {
+        p_encoder_status->encoder_acc = acc;
+    }
     p_encoder_status->encoder_speed_last = p_encoder_status->encoder_speed;
 }
 
@@ -171,12 +185,6 @@ static inline void encode_speed_update(int index, float pos_fb)
     Encoder_Config_t *p_encoder_config = &global_config.encoder_config[index];
     Encoder_Status_t *p_encoder_status = &global_status.encoder_status[index];
 
-    if (p_encoder_config->velocity_solver_band_width < FLOAT_EPSILON)
-    {
-        motor_set_ext_err(index, EXT_FAULT_CODE_CFG_ENCODER_VELOCITY_SOLVER_BAND_WIDTH);
-        return;
-    }
-
     switch (p_encoder_config->velocity_solver_type)
     {
     case Velocity_Solver_M:
@@ -185,6 +193,11 @@ static inline void encode_speed_update(int index, float pos_fb)
         acc_m_method_update(index);
 
     case Velocity_Solver_Estimator:
+        if (p_encoder_config->velocity_solver_band_width < FLOAT_EPSILON)
+        {
+            motor_set_ext_err(index, EXT_FAULT_CODE_CFG_ENCODER_VELOCITY_SOLVER_BAND_WIDTH);
+            return;
+        }
         position_estimate_update(index, pos_fb);
         break;
 

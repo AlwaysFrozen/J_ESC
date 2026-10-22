@@ -1,7 +1,0 @@
-C:/Users/virtual/Desktop/J_ESC/build/Debug/CMakeFiles/J_ESC.dir
-C:/Users/virtual/Desktop/J_ESC/build/Debug/CMakeFiles/edit_cache.dir
-C:/Users/virtual/Desktop/J_ESC/build/Debug/CMakeFiles/rebuild_cache.dir
-C:/Users/virtual/Desktop/J_ESC/build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir
-C:/Users/virtual/Desktop/J_ESC/build/Debug/cmake/stm32cubemx/CMakeFiles/USB_Device_Library.dir
-C:/Users/virtual/Desktop/J_ESC/build/Debug/cmake/stm32cubemx/CMakeFiles/edit_cache.dir
-C:/Users/virtual/Desktop/J_ESC/build/Debug/cmake/stm32cubemx/CMakeFiles/rebuild_cache.dir

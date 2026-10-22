@@ -2056,29 +2056,39 @@ static inline void gravity_identify_mode_update_rt(int index)
 }
 
 /**
- * @brief 根据实测中断时序计算电流环等效控制延时
- *
- * pwm_update_time 以 ADC 触发计数器周期起点为基准，记录该轴最近一次
- * PWM 影子寄存器写入完成的时刻，已包含 ADC 转换、中断响应及控制计算耗时。
- * 由该时刻定位下一次 PWM reload，减去 ADC 触发时刻，再叠加半个电流环
- * 周期作为零阶保持延时。供电流环整定和编码器电角度前馈补偿共同使用。
- * 在本周期 PWM 写入前调用时，使用的是上一周期的测量值；尚无测量值时，
- * 零初始化的 pwm_update_time 对应第一个 PWM reload。
+ * @brief 计算 PWM 影子寄存器更新时间
  *
  * @param index 电机编号
- * @return 等效控制延时，单位 s
+ * @return 更新时间延时，单位 us
  */
+void pwm_update_delay_record(int index)
+{
+    uint32_t pwm_counter = get_pwm_counter(0);
+#if SUMODE == SSSU
+    global_status.core_status.pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(pwm_counter);
+#elif SUMODE == DSSU
+    global_status.core_status.pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(pwm_counter);
+#elif SUMODE == DSDU
+    if (pwm_counter > MOTOR0_BLDCPWM_TRIG_CMP1_VALUE)
+    {
+        global_status.core_status.pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(pwm_counter) - BOARD_HRT_DT * 1e6f;
+    }
+    else
+    {
+        global_status.core_status.pwm_update_time[index] = BOARD_MOTO_CNT_TO_US(pwm_counter);
+    }
+#endif
+}
+
 float current_loop_delay_calculate(int index)
 {
-    Core_Status_t *pstatus      = &global_status.core_status;
-    float pwm_period_us          = 1e6f / (float)BOARD_PWM_FREQ;
-    float current_loop_period_us = 1e6f / (float)BOARD_HRT_FREQ;
-    float adc_trigger_time_us    = BOARD_MOTO_CNT_TO_US(BOARD_ADC_TRIGGER_COMPARE);
-    float pwm_update_time_us     = pstatus->pwm_update_time[index];
-    float pwm_reload_time_us     = (floorf(pwm_update_time_us / pwm_period_us) + 1.0f) * pwm_period_us;
-    float delay_us               = pwm_reload_time_us - adc_trigger_time_us + 0.5f * current_loop_period_us;
-
-    return MAX(delay_us, 0.0f) * 1e-6f;
+#if SUMODE == SSSU
+    return BOARD_HRT_DT * 1.5f;
+#elif SUMODE == DSSU
+    return BOARD_HRT_DT * 1.75f;
+#elif SUMODE == DSDU
+    return BOARD_HRT_DT * 1.5f;
+#endif
 }
 
 /**
