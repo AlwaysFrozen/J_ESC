@@ -34,6 +34,28 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
+# Generate into the build tree; checked-in files support manual/offline inspection.
+find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+set(OD_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/canopen_generated")
+add_custom_command(
+    OUTPUT "${OD_GENERATED_DIR}/od_generated.stamp"
+    BYPRODUCTS "${OD_GENERATED_DIR}/od_generated.c" "${OD_GENERATED_DIR}/od_generated.h"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_od.py"
+        --csv "${CMAKE_CURRENT_SOURCE_DIR}/canopen/object_dictionary.csv"
+        --out-dir "${OD_GENERATED_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${OD_GENERATED_DIR}/od_generated.stamp"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_od.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/canopen/object_dictionary.csv"
+    VERBATIM
+)
+add_custom_target(generate_od DEPENDS "${OD_GENERATED_DIR}/od_generated.stamp")
+add_dependencies(${CMAKE_PROJECT_NAME} generate_od)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    canopen/od.c canopen/od_user.c canopen/od_protocol.c canopen/od_cdc.c
+    "${OD_GENERATED_DIR}/od_generated.c")
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    "${OD_GENERATED_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/canopen")
+
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
@@ -108,4 +130,26 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 
     # Add user defined libraries
+)
+
+# Convert the linked firmware to flashing images in the build directory.
+# Resolve objcopy beside the compiler as well as on PATH.
+if(IS_ABSOLUTE "${CMAKE_OBJCOPY}")
+    set(FIRMWARE_OBJCOPY "${CMAKE_OBJCOPY}")
+else()
+    get_filename_component(FIRMWARE_TOOLCHAIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+    find_program(FIRMWARE_OBJCOPY NAMES "${CMAKE_OBJCOPY}"
+        HINTS "${FIRMWARE_TOOLCHAIN_DIR}" REQUIRED)
+endif()
+
+set(FIRMWARE_BIN "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin")
+set(FIRMWARE_HEX "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.hex")
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND "${FIRMWARE_OBJCOPY}" -O binary
+        "$<TARGET_FILE:${CMAKE_PROJECT_NAME}>" "${FIRMWARE_BIN}"
+    COMMAND "${FIRMWARE_OBJCOPY}" -O ihex
+        "$<TARGET_FILE:${CMAKE_PROJECT_NAME}>" "${FIRMWARE_HEX}"
+    BYPRODUCTS "${FIRMWARE_BIN}" "${FIRMWARE_HEX}"
+    COMMENT "Generating ${CMAKE_PROJECT_NAME}.bin and ${CMAKE_PROJECT_NAME}.hex"
+    VERBATIM
 )

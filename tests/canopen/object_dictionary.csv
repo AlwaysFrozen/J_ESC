@@ -1,0 +1,4 @@
+name,index,subindex,data_type,access
+bus_voltage,0x2000,0x00,REAL32,ro
+motor0_target_speed,0x2001,0x00,REAL32,rw
+motor0_current_limit,0x2002,0x00,REAL32,rw

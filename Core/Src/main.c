@@ -31,6 +31,7 @@
 /* USER CODE BEGIN Includes */
 #include "global.h"
 #include "config_storage.h"
+#include "od_cdc.h"
 #include "realtime.h"
 #include "stm32f4xx_ll_tim.h"
 /* USER CODE END Includes */
@@ -126,6 +127,10 @@ int main(void)
   (void)config_storage_load();
   motor_init();
   encoder_init();
+  if (od_cdc_init() != OD_OK)
+  {
+    Error_Handler();
+  }
   high_realtime_init();
   realtime_init();
   /* USER CODE END 2 */
@@ -138,6 +143,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     none_realtime_callback();
+    od_cdc_poll();
   }
   /* USER CODE END 3 */
 }
