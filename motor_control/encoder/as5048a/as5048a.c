@@ -10,11 +10,9 @@
  */
 
 #include "as5048a.h"
-#include "board.h"
-#include "global.h"
+#include "encoder_spi.h"
 #include <stdbool.h>
-#include "stm32f4xx_hal.h"
-#include "main.h"
+#include <string.h>
 
 #define DEFAULT_WDG_VALUE       (3UL)
 
@@ -27,30 +25,14 @@
 //0x0001    Clear Error Flag
 //0x3FFE    Magnitude
 //0x3FFF    Angle
-extern SPI_HandleTypeDef hspi1;
 
 AS5048A_t as5048a_encoer[BOARD_SUPPORTED_MOTOR_NUMBER] = {0};
 
-static inline bool as5048a_read_raw(uint16_t *data)
+static inline bool as5048a_read_raw(int index, uint16_t *data)
 {
     bool sta = true;
-    uint16_t tx = AS5048A_ANGLE;
     uint8_t parity_cnt = 0;
-    uint16_t rx = 0;
-
-    // HAL_GPIO_WritePin(ENCODER_SPI_CS_GPIO_Port,ENCODER_SPI_CS_Pin,GPIO_PIN_RESET);
-    // HAL_SPI_TransmitReceive(&hspi1,(uint8_t *)&tx,(uint8_t *)&rx,1,0);
-    // HAL_GPIO_WritePin(ENCODER_SPI_CS_GPIO_Port,ENCODER_SPI_CS_Pin,GPIO_PIN_SET);
-    
-    ENCODER_SPI_CS_GPIO_Port->BSRR = (uint32_t)ENCODER_SPI_CS_Pin << 16U;
-    // send
-    SPI1->DR = tx;
-    // receive
-    while ((SPI1->SR & SPI_SR_RXNE) == 0U);
-    rx = SPI1->DR;
-    // wait until transmit end
-    while(SPI1->SR & SPI_SR_BSY);
-    ENCODER_SPI_CS_GPIO_Port->BSRR = ENCODER_SPI_CS_Pin;
+    uint16_t rx = encoder_spi_transfer16(index, AS5048A_ANGLE);
 
     *data = rx;
 
@@ -95,7 +77,7 @@ bool as5048a_encoder_init(int index)
 void as5048a_encoder_read_single_turn(int index)
 {
     uint16_t data = 0;
-    if (as5048a_read_raw(&data))
+    if (as5048a_read_raw(index, &data))
     {
         // check err
         if(data & AS5048A_ERR_MSK)
@@ -130,23 +112,8 @@ void as5048a_encoder_read_single_turn(int index)
  */
 void as5048a_encoder_reset_error(int index)
 {
-    uint16_t tx = AS5048A_CLEAR,rx = 0;
-
     as5048a_encoer[index].err_reset_done = false;
-
-    // HAL_GPIO_WritePin(ENCODER_SPI_CS_GPIO_Port,ENCODER_SPI_CS_Pin,GPIO_PIN_RESET);
-    // HAL_SPI_TransmitReceive(&hspi1,(uint8_t *)&tx,(uint8_t *)&rx,1,0);
-    // HAL_GPIO_WritePin(ENCODER_SPI_CS_GPIO_Port,ENCODER_SPI_CS_Pin,GPIO_PIN_SET);
-
-    ENCODER_SPI_CS_GPIO_Port->BSRR = (uint32_t)ENCODER_SPI_CS_Pin << 16U;
-    // send
-    SPI1->DR = tx;
-    // receive
-    while ((SPI1->SR & SPI_SR_RXNE) == 0U);
-    rx = SPI1->DR;
-    // wait until transmit end
-    while(SPI1->SR & SPI_SR_BSY);
-    ENCODER_SPI_CS_GPIO_Port->BSRR = ENCODER_SPI_CS_Pin;
+    (void)encoder_spi_transfer16(index, AS5048A_CLEAR);
 }
 
 

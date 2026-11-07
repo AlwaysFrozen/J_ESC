@@ -30,6 +30,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "global.h"
+#include "config_storage.h"
 #include "realtime.h"
 #include "stm32f4xx_ll_tim.h"
 /* USER CODE END Includes */
@@ -121,6 +122,8 @@ int main(void)
   DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM8_STOP;
 
   global_init_default();
+  /* Invalid/absent records leave the existing defaults unchanged. */
+  (void)config_storage_load();
   motor_init();
   encoder_init();
   high_realtime_init();

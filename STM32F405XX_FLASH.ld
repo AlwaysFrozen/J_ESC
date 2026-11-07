@@ -57,8 +57,15 @@ MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 1024K
+/* Sectors 10/11 are reserved for alternating configuration records. */
+FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 768K
+CONFIG_A (r)    : ORIGIN = 0x080C0000, LENGTH = 128K
+CONFIG_B (r)    : ORIGIN = 0x080E0000, LENGTH = 128K
 }
+
+__config_slot_a = ORIGIN(CONFIG_A);
+__config_slot_b = ORIGIN(CONFIG_B);
+__config_slot_size = LENGTH(CONFIG_A);
 
 /* Highest address of the user mode stack */
 _estack = ORIGIN(RAM) + LENGTH(RAM);    /* end of RAM */

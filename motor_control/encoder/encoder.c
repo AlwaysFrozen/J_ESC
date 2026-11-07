@@ -191,6 +191,7 @@ static inline void encode_speed_update(int index, float pos_fb)
         p_encoder_status->encoder_pos = pos_fb;
         speed_m_method_update(index);
         acc_m_method_update(index);
+        break;
 
     case Velocity_Solver_Estimator:
         if (p_encoder_config->velocity_solver_band_width < FLOAT_EPSILON)

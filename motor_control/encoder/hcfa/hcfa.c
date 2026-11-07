@@ -10,6 +10,7 @@
  */
 
 #include "hcfa.h"
+#include "encoder_rs485.h"
 
 #include <string.h>
 
@@ -71,7 +72,7 @@ static inline void hcfa_encoder_read_prepare(int index)
 {
     if (hcfa_encoer[index].wdg_cnt != DEFAULT_WDG_VALUE)
     {
-
+        encoder_rs485_abort(index);
     }
 
     if (--hcfa_encoer[index].wdg_cnt < 0)
@@ -247,13 +248,12 @@ void hcfa_read_reset_abm_callback(int index, volatile uint8_t *buf, int len)
  */
 bool hcfa_encoder_init(int index, int baudrate, int single_turn_bits, int mult_turn_bits)
 {
-    bool res = false;
     memset((void *)&hcfa_encoer[index], 0, sizeof(HCFA_t));
     hcfa_encoer[index].single_turn_bits = single_turn_bits;
     hcfa_encoer[index].mult_turn_bits   = mult_turn_bits;
     hcfa_encoer[index].wdg_cnt          = DEFAULT_WDG_VALUE;
 
-    return res;
+    return encoder_rs485_init(index, baudrate);
 }
 
 /**
@@ -265,6 +265,9 @@ void hcfa_encoder_read_single_turn(int index)
 {
     hcfa_encoder_read_prepare(index);
     hcfa_encoer[index].cf = HCFA_CF_ID0;
+    (void)encoder_rs485_transfer(index, &hcfa_encoer[index].cf, 1U,
+                                hcfa_encoer[index].rx_buf, 6U,
+                                hcfa_read_single_turn_callback);
 }
 
 /**
@@ -276,6 +279,9 @@ void hcfa_encoder_read_mult_turn(int index)
 {
     hcfa_encoder_read_prepare(index);
     hcfa_encoer[index].cf = HCFA_CF_ID1;
+    (void)encoder_rs485_transfer(index, &hcfa_encoer[index].cf, 1U,
+                                hcfa_encoer[index].rx_buf, 6U,
+                                hcfa_read_mult_turn_callback);
 }
 
 /**
@@ -287,6 +293,9 @@ void hcfa_encoder_read_all(int index)
 {
     hcfa_encoder_read_prepare(index);
     hcfa_encoer[index].cf = HCFA_CF_ID3;
+    (void)encoder_rs485_transfer(index, &hcfa_encoer[index].cf, 1U,
+                                hcfa_encoer[index].rx_buf, 11U,
+                                hcfa_read_all_callback);
 }
 
 /**
@@ -299,6 +308,9 @@ void hcfa_encoder_reset_error(int index)
     hcfa_encoder_read_prepare(index);
     hcfa_encoer[index].err_reset_done = false;
     hcfa_encoer[index].cf             = HCFA_CF_ID7;
+    (void)encoder_rs485_transfer(index, &hcfa_encoer[index].cf, 1U,
+                                hcfa_encoer[index].rx_buf, 6U,
+                                hcfa_read_reset_error_callback);
 }
 
 /**
@@ -315,6 +327,9 @@ void hcfa_encoder_reset_abs(int index)
     }
     hcfa_encoer[index].reset_abs_tx_cnt += 1;
     hcfa_encoer[index].cf                = HCFA_CF_ID8;
+    (void)encoder_rs485_transfer(index, &hcfa_encoer[index].cf, 1U,
+                                hcfa_encoer[index].rx_buf, 6U,
+                                hcfa_read_reset_abs_callback);
 }
 
 /**
@@ -331,4 +346,7 @@ void hcfa_encoder_reset_abm(int index)
     }
     hcfa_encoer[index].reset_abm_tx_cnt += 1;
     hcfa_encoer[index].cf                = HCFA_CF_IDC;
+    (void)encoder_rs485_transfer(index, &hcfa_encoer[index].cf, 1U,
+                                hcfa_encoer[index].rx_buf, 6U,
+                                hcfa_read_reset_abm_callback);
 }

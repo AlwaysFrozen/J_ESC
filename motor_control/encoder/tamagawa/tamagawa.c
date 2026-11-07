@@ -10,6 +10,7 @@
  */
 
 #include "tamagawa.h"
+#include "encoder_rs485.h"
 
 #include <string.h>
 
@@ -71,7 +72,7 @@ static inline void tamagawa_encoder_read_prepare(int index)
 {
     if (tamagawa_encoer[index].wdg_cnt != DEFAULT_WDG_VALUE)
     {
-        
+        encoder_rs485_abort(index);
     }
 
     if (--tamagawa_encoer[index].wdg_cnt < 0)
@@ -248,13 +249,12 @@ void tamagawa_read_reset_abm_callback(int index, volatile uint8_t *buf, int len)
  */
 bool tamagawa_encoder_init(int index, int baudrate, int single_turn_bits, int mult_turn_bits)
 {
-    bool res = false;
     memset((void *)&tamagawa_encoer[index], 0, sizeof(Tamagawa_t));
     tamagawa_encoer[index].single_turn_bits = single_turn_bits;
     tamagawa_encoer[index].mult_turn_bits   = mult_turn_bits;
     tamagawa_encoer[index].wdg_cnt          = DEFAULT_WDG_VALUE;
 
-    return res;
+    return encoder_rs485_init(index, baudrate);
 }
 
 /**
@@ -266,6 +266,9 @@ void tamagawa_encoder_read_single_turn(int index)
 {
     tamagawa_encoder_read_prepare(index);
     tamagawa_encoer[index].cf = TAMAGAWA_CF_ID0;
+    (void)encoder_rs485_transfer(index, &tamagawa_encoer[index].cf, 1U,
+                                tamagawa_encoer[index].rx_buf, 6U,
+                                tamagawa_read_single_turn_callback);
 }
 
 /**
@@ -277,6 +280,9 @@ void tamagawa_encoder_read_mult_turn(int index)
 {
     tamagawa_encoder_read_prepare(index);
     tamagawa_encoer[index].cf = TAMAGAWA_CF_ID1;
+    (void)encoder_rs485_transfer(index, &tamagawa_encoer[index].cf, 1U,
+                                tamagawa_encoer[index].rx_buf, 6U,
+                                tamagawa_read_mult_turn_callback);
 }
 
 /**
@@ -288,6 +294,9 @@ void tamagawa_encoder_read_all(int index)
 {
     tamagawa_encoder_read_prepare(index);
     tamagawa_encoer[index].cf = TAMAGAWA_CF_ID3;
+    (void)encoder_rs485_transfer(index, &tamagawa_encoer[index].cf, 1U,
+                                tamagawa_encoer[index].rx_buf, 11U,
+                                tamagawa_read_all_callback);
 }
 
 /**
@@ -300,6 +309,9 @@ void tamagawa_encoder_reset_error(int index)
     tamagawa_encoder_read_prepare(index);
     tamagawa_encoer[index].err_reset_done = false;
     tamagawa_encoer[index].cf             = TAMAGAWA_CF_ID7;
+    (void)encoder_rs485_transfer(index, &tamagawa_encoer[index].cf, 1U,
+                                tamagawa_encoer[index].rx_buf, 6U,
+                                tamagawa_read_reset_error_callback);
 }
 
 /**
@@ -316,6 +328,9 @@ void tamagawa_encoder_reset_abs(int index)
     }
     tamagawa_encoer[index].reset_abs_tx_cnt += 1;
     tamagawa_encoer[index].cf                = TAMAGAWA_CF_ID8;
+    (void)encoder_rs485_transfer(index, &tamagawa_encoer[index].cf, 1U,
+                                tamagawa_encoer[index].rx_buf, 6U,
+                                tamagawa_read_reset_abs_callback);
 }
 
 /**
@@ -332,4 +347,7 @@ void tamagawa_encoder_reset_abm(int index)
     }
     tamagawa_encoer[index].reset_abm_tx_cnt += 1;
     tamagawa_encoer[index].cf                = TAMAGAWA_CF_IDC;
+    (void)encoder_rs485_transfer(index, &tamagawa_encoer[index].cf, 1U,
+                                tamagawa_encoer[index].rx_buf, 6U,
+                                tamagawa_read_reset_abm_callback);
 }

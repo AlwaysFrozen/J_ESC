@@ -48,6 +48,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/inverter.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/realtime.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/rand.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/encoder_spi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/encoder_rs485.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal/config_flash.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/config/config_storage.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/dc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/foc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control/hfi.c
@@ -80,6 +84,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/bsp
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/hal
+    ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/config
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/control
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder
     ${CMAKE_CURRENT_SOURCE_DIR}/motor_control/encoder/as5048a
