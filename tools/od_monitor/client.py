@@ -7,6 +7,10 @@ STATUS = {
     1: "参数错误", 2: "主索引不存在", 3: "子索引不存在", 4: "权限拒绝",
     5: "长度不匹配", 6: "数据类型不匹配，请检查 CSV", 7: "变量未绑定",
     8: "重复绑定", 9: "映射已冻结", 10: "字典未就绪", 11: "数据值无效",
+    12: "控制状态不允许：请检查失能/使能、校准、寻相和当前模式",
+    13: "当前电机类型或辨识算法尚不支持此操作",
+    14: "操作失败：请读取 Flash 状态及电机故障码",
+    15: "参数无效或尚未应用：请失能后应用参数并检查故障码",
     0x80: "协议格式错误", 0x81: "设备忙：电机须失能且处于 IDLE 或 Err",
 }
 
@@ -28,7 +32,7 @@ class Client:
         self.sequence = secrets.randbits(32)
         self.pending = bytearray()
 
-    def exchange(self, entry, data=None):
+    def exchange(self, entry, data=None, *, timeout=None):
         write = data is not None
         if write and entry.access == "ro":
             raise ValueError("只读条目不能写入")
@@ -43,7 +47,7 @@ class Client:
         if write:
             request += " " + data.hex().upper()
         self.port.write((request + "\n").encode("ascii"))
-        deadline = time.monotonic() + self.timeout
+        deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
         while time.monotonic() < deadline:
             while b"\n" in self.pending:
                 raw, _, rest = self.pending.partition(b"\n")
@@ -73,9 +77,9 @@ class Client:
     def read(self, entry):
         return entry.decode(self.exchange(entry))
 
-    def write(self, entry, text):
+    def write(self, entry, text, *, timeout=None):
         data = entry.encode(text)
-        self.exchange(entry, data)
+        self.exchange(entry, data, timeout=timeout)
         return entry.decode(data)
 
     def close(self):

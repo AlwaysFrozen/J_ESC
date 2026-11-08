@@ -3,12 +3,15 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/od_monitor"))
 from client import Client, DeviceError, ProtocolError
 from model import Entry, FORMATS, load_dictionary
 from serial_win32 import DCB, Timeouts
+from commands import COMMANDS, IDENTIFY, IDENTIFICATIONS, STATUS_NAMES, find_command, is_command
+from app import Monitor
 
 
 class FakePort:
@@ -93,9 +96,9 @@ class MonitorTests(unittest.TestCase):
 
     def test_product_csv_and_native_structure_layout(self):
         entries = load_dictionary(ROOT / "canopen/object_dictionary.csv")
-        self.assertEqual(len(entries), 615)
-        self.assertEqual((entries[0].index, entries[0].subindex, entries[0].access), (0x2000, 0, "ro"))
-        self.assertEqual({entry.index for entry in entries}, set(range(0x2000, 0x2007)) | set(range(0x2100, 0x210A)))
+        self.assertEqual(len(entries), 626)
+        self.assertEqual((entries[0].index, entries[0].subindex, entries[0].access), (0, 0, "ro"))
+        self.assertEqual({entry.index for entry in entries}, {0, 0x1000} | set(range(0x2000, 0x2007)) | set(range(0x2100, 0x210A)))
         self.assertEqual((entries[-1].index, entries[-1].subindex), (0x2109, 0x1E))
         for entry in entries:
             if entry.index >= 0x2100:
@@ -103,6 +106,55 @@ class MonitorTests(unittest.TestCase):
         if sys.platform == "win32":
             self.assertEqual(ctypes.sizeof(DCB), 28)
             self.assertEqual(ctypes.sizeof(Timeouts), 20)
+
+    def test_command_metadata_and_status_names(self):
+        entries = load_dictionary(ROOT / "canopen/object_dictionary.csv")
+        for command in (*COMMANDS.values(), IDENTIFY):
+            found = find_command(entries, command)
+            self.assertIsNotNone(found)
+            self.assertTrue(is_command(found[1]))
+            self.assertIsNone(find_command([Entry(command.name, command.index + 1,
+                                                 command.subindex, "UNSIGNED32", "wo")], command))
+        self.assertTrue(set(STATUS_NAMES) <= {entry.name for entry in entries})
+
+    def test_command_buttons_queue_one_write_and_honor_busy(self):
+        monitor = Monitor.__new__(Monitor)
+        monitor.entries = load_dictionary(ROOT / "canopen/object_dictionary.csv")
+        monitor.connected, monitor.busy = True, False
+        monitor._start = Mock()
+        monitor.identification = Mock()
+        for key, command in COMMANDS.items():
+            monitor.send_command(key)
+            number, entry = find_command(monitor.entries, command)
+            monitor._start.assert_called_with("write", (number, entry, str(command.value)))
+        for label, value in IDENTIFICATIONS.items():
+            monitor.identification.get.return_value = label
+            monitor.send_command("identify")
+            number, entry = find_command(monitor.entries, IDENTIFY)
+            monitor._start.assert_called_with("write", (number, entry, str(value)))
+        monitor._start.reset_mock()
+        monitor.busy = True
+        monitor.send_command("enable")
+        monitor._start.assert_not_called()
+        monitor.busy, monitor.connected = False, False
+        monitor.send_command("enable")
+        monitor._start.assert_not_called()
+
+    def test_commands_use_requested_addresses_and_never_retry(self):
+        entries = load_dictionary(ROOT / "canopen/object_dictionary.csv")
+        for command in (*COMMANDS.values(), IDENTIFY):
+            entry = find_command(entries, command)[1]
+            port = FakePort(lambda seq: b"O " + seq + b" 00 -\n")
+            client = Client(port)
+            client.sequence = 0
+            client.write(entry, str(command.value), timeout=10 if command.name == "system_save_flash" else None)
+            self.assertEqual(len(port.writes), 1)
+            self.assertIn(f"{command.index:04X} {command.subindex:02X} 0007 04".encode(), port.writes[0])
+        port = FakePort(lambda seq: b"")
+        client = Client(port, timeout=0.001)
+        with self.assertRaises(TimeoutError):
+            client.write(find_command(entries, COMMANDS["save"])[1], "1")
+        self.assertEqual(len(port.writes), 1)
 
 
 if __name__ == "__main__":

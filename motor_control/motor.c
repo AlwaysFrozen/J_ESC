@@ -23,6 +23,7 @@
 #include "dc.h"
 #include "motion_planner.h"
 #include "observer.h"
+#include "motor_config_policy.h"
 #include <stddef.h>
 
 /* 记录最近几次出现的警告,避免警告循环写入日志 */
@@ -463,19 +464,18 @@ static inline void motor_check_err_rt(int index)
     float ir2       = SQ(ir);
     float ip2       = SQ(ip);
     float peak_time = p_motor_config->peak_current_time_s;
-    float heat_gen  = (i2 - ir2) / (ip2 - ir2);
-    if (heat_gen < 0.0f)
+    /* A latched configuration fault can still run this monitor. Never divide
+     * by the zero defaults before a valid motor profile has been applied. */
+    if (motor_policy_thermal_valid(p_motor_config->rated_current, p_motor_config->peak_current,
+                                  peak_time, p_motor_config->cooling_time_s))
     {
-        heat_gen = 0.0f;
-    }
-    float dthermal = heat_gen / peak_time - p_motor_status->thermal_accumulator / p_motor_config->cooling_time_s;
-
-    p_motor_status->thermal_accumulator += dthermal * BOARD_RT_DT;
-    p_motor_status->thermal_accumulator  = CONSTRAIN(p_motor_status->thermal_accumulator, 0.0f, 2.0f);
-
-    if (p_motor_status->thermal_accumulator > p_motor_status->thermal_limit)
-    {
-        motor_set_err(index, FAULT_CODE_OVER_LOAD);
+        float heat_gen = (i2 - ir2) / (ip2 - ir2);
+        if (heat_gen < 0.0f) heat_gen = 0.0f;
+        float dthermal = heat_gen / peak_time - p_motor_status->thermal_accumulator / p_motor_config->cooling_time_s;
+        p_motor_status->thermal_accumulator += dthermal * BOARD_RT_DT;
+        p_motor_status->thermal_accumulator = CONSTRAIN(p_motor_status->thermal_accumulator, 0.0f, 2.0f);
+        if (p_motor_status->thermal_accumulator > p_motor_status->thermal_limit)
+            motor_set_err(index, FAULT_CODE_OVER_LOAD);
     }
 
 #if SUPPORTED_STOP_NUMBER > 0
@@ -492,7 +492,7 @@ static inline void motor_check_err_rt(int index)
  * 
  * @param index 电机编号
  */
-static inline void motor_config_check(int index)
+void motor_config_check(int index)
 {
     Motor_Config_t *p_motor_config                       = &global_config.motor_config[index];
     Motor_Controller_Config_t *p_motor_controller_config = &global_config.motor_controller_config[index];
@@ -2385,6 +2385,11 @@ void motor_update_rt(int index)
     motor_torque_update_rt(index);
     motor_status_update_rt(index);
 
+    /* A target clamp cannot stop a free-running current-mode motor. Enforce
+     * measured speed independently of the selected controller, including align. */
+    if (p_motor_status->is_enabled && motor_policy_speed_trip(p_motor_status->vel_fb, cfg_peak_speed_to_motor_speed(index)))
+        motor_set_err(index, FAULT_CODE_OVER_SPEED);
+
     switch (p_motor_status->motor_state)
     {
     case MS_Running:
@@ -2784,6 +2789,9 @@ void motor_init(void)
         Loop_Controller_t *p_loop_controller_status          = &global_status.loop_controller_status[index];
 
         p_motor_status->thermal_limit = 1.1f;
+        /* Recover only invalid derived state left by an earlier invalid
+         * configuration; preserve any finite thermal history on reapply. */
+        if (!motor_policy_finite(p_motor_status->thermal_accumulator)) p_motor_status->thermal_accumulator = 0;
 
         motor_config_check(index);
         motor_calculate_torque_limits(index);

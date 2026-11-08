@@ -77,27 +77,35 @@ bool as5048a_encoder_init(int index)
 void as5048a_encoder_read_single_turn(int index)
 {
     uint16_t data = 0;
-    if (as5048a_read_raw(index, &data))
+    bool valid = as5048a_read_raw(index, &data);
+    if (!as5048a_encoer[index].primed) {
+        as5048a_encoer[index].primed = true;
+        return; /* SPI response is for the preceding command, not this one. */
+    }
+    if (valid)
     {
         // check err
         if(data & AS5048A_ERR_MSK)
         {
             as5048a_encoer[index].err = true;
+            as5048a_encoer[index].pos_valid = false;
         }
         else
         {
             as5048a_encoer[index].err = false;
             as5048a_encoer[index].err_reset_done = true;
             as5048a_encoer[index].pos_valid = true;
+            as5048a_encoer[index].abs = data & AS5048A_DATA_MSK;
         }
 
-        as5048a_encoer[index].abs = data & AS5048A_DATA_MSK;
         as5048a_encoer[index].wdg_cnt = DEFAULT_WDG_VALUE;
         as5048a_encoer[index].wdg_err = false;
     }
     else
     {
-        if (--as5048a_encoer[index].wdg_cnt < 0)
+        as5048a_encoer[index].pos_valid = false;
+        if (as5048a_encoer[index].wdg_cnt > 0) --as5048a_encoer[index].wdg_cnt;
+        else
         {
             as5048a_encoer[index].wdg_err = true;
             as5048a_encoer[index].pos_valid = false;
@@ -114,6 +122,12 @@ void as5048a_encoder_reset_error(int index)
 {
     as5048a_encoer[index].err_reset_done = false;
     (void)encoder_spi_transfer16(index, AS5048A_CLEAR);
+    /* Fetch the clear-error register response while requesting the next angle.
+     * The following regular transfer therefore has a typed angle response. */
+    uint16_t flags = encoder_spi_transfer16(index, AS5048A_ANGLE);
+    as5048a_encoer[index].last_error_flags = flags & 7U;
+    as5048a_encoer[index].primed = true;
+    as5048a_encoer[index].pos_valid = false;
 }
 
 

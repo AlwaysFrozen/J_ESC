@@ -232,7 +232,10 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
-
+      /* pbuf points to the setup request for zero-length CDC commands. Closing
+       * the COM port drops DTR: discard the binary session for legacy reconnect. */
+      if ((((USBD_SetupReqTypedef *)pbuf)->wValue & 1U) == 0)
+        od_cdc_session_reset();
     break;
 
     case CDC_SEND_BREAK:

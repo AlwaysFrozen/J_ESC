@@ -33,6 +33,8 @@ typedef struct
     bool wdg_err;
     bool pos_valid;
     bool err_reset_done;
+    bool primed; /* response belongs to the preceding angle request */
+    uint16_t last_error_flags;
 } AS5048A_t;
 
 extern AS5048A_t as5048a_encoer[BOARD_SUPPORTED_MOTOR_NUMBER];

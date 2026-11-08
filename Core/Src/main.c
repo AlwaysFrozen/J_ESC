@@ -68,9 +68,17 @@ void SystemClock_Config(void);
 
 void DWT_Init(void)
 {
+  /* Application timing must also work after a cold boot without a debugger.
+   * J-Link may clear trace/counter enables on detach. Preserve CYCCNT on
+   * recovery and invalidate interval baselines before interrupts resume. */
+  uint32_t saved_primask = __get_PRIMASK();
+  __disable_irq();
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-  DWT->CYCCNT = 0U;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  __DSB();
+  __ISB();
+  Debug_Timing_Rebase();
+  __set_PRIMASK(saved_primask);
 }
 
 /* USER CODE END 0 */
@@ -123,6 +131,7 @@ int main(void)
   DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM8_STOP;
 
   global_init_default();
+  DWT_Init();
   /* Invalid/absent records leave the existing defaults unchanged. */
   (void)config_storage_load();
   motor_init();
@@ -142,6 +151,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    if (((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) == 0U) ||
+        ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0U))
+    {
+      DWT_Init();
+    }
     none_realtime_callback();
     od_cdc_poll();
   }

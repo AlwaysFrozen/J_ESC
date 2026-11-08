@@ -174,6 +174,7 @@ typedef enum
     FAULT_CODE_BLOCKED,                  ///< 堵转错误
     FAULT_CODE_JITTER,                   ///< 异常抖动
     FAULT_CODE_HFI,                      ///< 高频注入错误
+    FAULT_CODE_OVER_SPEED,               ///< 实际速度越过配置的峰值速度或反馈无效
 
     // 通信错误
     FAULT_CODE_ERROR_ETHERCAT = 200, ///< ECAT通信中断
@@ -989,3 +990,6 @@ void motor_set_encoder_offset(int index, float offset);
  * @param offset 编码器偏移
  */
 void motor_sync_encoder_offset(int index, float offset);
+
+/* Validate the current configuration; failures latch a motor fault. */
+void motor_config_check(int index);

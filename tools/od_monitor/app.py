@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from client import Client, DeviceError
 from model import load_dictionary
+from commands import COMMANDS, IDENTIFICATIONS, IDENTIFY, STATUS_NAMES, find_command, is_command, format_status
 from serial_win32 import SerialPort, list_ports
 
 DEFAULT_CSV = Path(__file__).resolve().parents[2] / "canopen/object_dictionary.csv"
@@ -26,9 +27,10 @@ class Monitor:
         self.value = tk.StringVar()
         self.state = tk.StringVar(value="未连接")
         self.detail = tk.StringVar(value="选择参数，读取后可编辑写入值。")
-        root.title("J_ESC 参数工具 · USB CDC")
-        root.geometry("1180x680")
-        root.minsize(850, 460)
+        self.identification = tk.StringVar(value=next(iter(IDENTIFICATIONS)))
+        root.title("J_ESC 参数与电机控制 · USB CDC")
+        root.geometry("1180x780")
+        root.minsize(1000, 600)
         self._build()
         self.refresh_ports()
         self.load_csv()
@@ -58,6 +60,27 @@ class Monitor:
         self.connect_button = ttk.Button(bar, text="连接", command=self.toggle_connection)
         self.connect_button.pack(side="left", padx=8)
         ttk.Label(bar, textvariable=self.state).pack(side="left", padx=8)
+
+        control = ttk.LabelFrame(frame, text="轴 0 控制", padding=8)
+        control.pack(fill="x", pady=(0, 10))
+        command_bar = ttk.Frame(control)
+        command_bar.pack(fill="x")
+        self.command_buttons = {}
+        for key in ("enable", "disable", "align", "fault_reset", "apply", "save"):
+            button = ttk.Button(command_bar, text=COMMANDS[key].label, command=lambda key=key: self.send_command(key))
+            button.pack(side="left", padx=(0, 6))
+            self.command_buttons[key] = button
+        identify_bar = ttk.Frame(control)
+        identify_bar.pack(fill="x", pady=(8, 0))
+        self.identify_choice = ttk.Combobox(identify_bar, textvariable=self.identification,
+                                          values=tuple(IDENTIFICATIONS), state="readonly", width=18)
+        self.identify_choice.pack(side="left")
+        self.identify_button = ttk.Button(identify_bar, text="启动辨识", command=lambda: self.send_command("identify"))
+        self.identify_button.pack(side="left", padx=6)
+        self.status_button = ttk.Button(identify_bar, text="读取控制状态", command=self.read_control_status)
+        self.status_button.pack(side="left", padx=6)
+        ttk.Label(control, text="写参 → 失能并应用参数 → 使能 → 寻相/辨识。寻相与辨识会通电或运动；切换操作前先失能再使能。",
+                  wraplength=1080).pack(fill="x", pady=(8, 0))
 
         table_frame = ttk.Frame(frame)
         table_frame.pack(fill="both", expand=True)
@@ -89,7 +112,7 @@ class Monitor:
         self.write_button = ttk.Button(actions, text="写入选中参数", command=self.write_selected)
         self.write_button.pack(side="left", padx=6)
         ttk.Label(frame, textvariable=self.detail, wraplength=1100).pack(fill="x", anchor="w")
-        ttk.Label(frame, text="写入仅修改 RAM；电机须失能并处于 IDLE / Err。枚举值使用数值输入。",
+        ttk.Label(frame, text="配置写入仅修改 RAM；应用后显式保存 Flash。控制命令立即执行；成功响应不代表寻相/辨识已完成。",
                   foreground="#666666").pack(fill="x", pady=(6, 0))
         self._controls()
 
@@ -107,6 +130,14 @@ class Monitor:
         writable = len(selected) == 1 and self.entries[int(selected[0])].access != "ro"
         self.write_button.configure(state="normal" if idle and self.connected and writable else "disabled")
         self.value_entry.configure(state="normal" if idle and writable else "disabled")
+        for key, button in self.command_buttons.items():
+            available = find_command(self.entries, COMMANDS[key]) is not None
+            button.configure(state="normal" if idle and self.connected and available else "disabled")
+        available = find_command(self.entries, IDENTIFY) is not None
+        self.identify_button.configure(state="normal" if idle and self.connected and available else "disabled")
+        self.identify_choice.configure(state="readonly" if idle else "disabled")
+        self.status_button.configure(state="normal" if idle and self.connected and
+                                     any(e.name in STATUS_NAMES for e in self.entries) else "disabled")
 
     def refresh_ports(self):
         try:
@@ -179,6 +210,20 @@ class Monitor:
             return
         self._start("write", (number, entry, self.value.get()))
 
+    def send_command(self, key):
+        command = IDENTIFY if key == "identify" else COMMANDS[key]
+        found = find_command(self.entries, command)
+        if not found or not self.connected or self.busy:
+            return
+        number, entry = found
+        value = IDENTIFICATIONS[self.identification.get()] if key == "identify" else command.value
+        self._start("write", (number, entry, str(value)))
+
+    def read_control_status(self):
+        items = [(i, e) for i, e in enumerate(self.entries) if e.name in STATUS_NAMES and e.access != "wo"]
+        if items:
+            self._start("status", items)
+
     def _worker(self):
         client = None
         try:
@@ -195,22 +240,37 @@ class Monitor:
                         if client:
                             client.close()
                         client = None
-                    elif operation == "read":
+                    elif operation in ("read", "status"):
                         if client is None:
                             raise OSError("尚未连接串口")
+                        summary = []
                         for number, entry in payload:
                             if self.stop.is_set():
                                 break
                             try:
-                                self.events.put(("row", number, client.read(entry), "读取成功"))
+                                value = client.read(entry)
+                                self.events.put(("row", number, value, "读取成功"))
+                                summary.append(format_status(entry, value))
                             except DeviceError as error:
                                 self.events.put(("row", number, None, str(error)))
+                                summary.append(f"{entry.name}: {error}")
+                        if operation == "status":
+                            self.events.put(("message", "；".join(summary)))
                     elif operation == "write":
                         if client is None:
                             raise OSError("尚未连接串口")
                         number, entry, text = payload
-                        value = client.write(entry, text)
-                        self.events.put(("row", number, value, "写入已确认，未回读"))
+                        value = client.write(entry, text, timeout=10.0 if entry.name == "system_save_flash" else None)
+                        status = "命令已执行" if is_command(entry) else "写入已确认，未回读"
+                        self.events.put(("row", number, value, status))
+                        if is_command(entry):
+                            command = next((c for c in (*COMMANDS.values(), IDENTIFY)
+                                            if c.matches(entry) and c.value == int(value)), None)
+                            if entry.name == IDENTIFY.name:
+                                result = IDENTIFY.result
+                            else:
+                                result = command.result if command else "命令已执行"
+                            self.events.put(("message", result))
                 except DeviceError as error:
                     if operation == "write":
                         self.events.put(("row", payload[0], None, str(error)))
@@ -218,12 +278,12 @@ class Monitor:
                 except (OSError, ValueError) as error:
                     if operation == "write":
                         self.events.put(("row", payload[0], None, "写入结果未知，请重连读取确认"))
-                    elif operation == "read" and payload:
+                    elif operation in ("read", "status") and payload:
                         self.events.put(("row", number, None, str(error)))
                     if client:
                         client.close()
                     client = None
-                    hint = "写入结果未知，请重连读取确认。" if operation == "write" else ""
+                    hint = "写入/命令结果未知，请重连读取状态，勿直接重试。" if operation == "write" else ""
                     self.events.put(("message", f"{hint}操作失败，连接已关闭：{error}"))
                 finally:
                     self.events.put(("done", client is not None))

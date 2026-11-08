@@ -2,6 +2,28 @@
 #include "od_generated.h"
 
 static const OD_Entry entries[OD_ENTRY_COUNT] = {
+    /* 轴0控制最大子索引 */
+    [OD_NAME_control0_max_subindex] = {"control0_max_subindex", 0x0000, 0x00, OD_UNSIGNED8, OD_RO, 1},
+    /* 轴0使能1/失能0；使能后不自动启动运动 */
+    [OD_NAME_control0_enable] = {"control0_enable", 0x0000, 0x01, OD_UNSIGNED32, OD_WO, 4},
+    /* 写1启动寻相；须已使能且无活动操作 */
+    [OD_NAME_control0_align] = {"control0_align", 0x0000, 0x02, OD_UNSIGNED32, OD_WO, 4},
+    /* 辨识1电阻/2电感/3极对数/4磁链；5齿槽/6惯量/7摩擦/8重力暂不支持 */
+    [OD_NAME_control0_identify] = {"control0_identify", 0x0000, 0x03, OD_UNSIGNED32, OD_WO, 4},
+    /* 当前辨识内部阶段；与辨识类型及电机故障码结合判断 */
+    [OD_NAME_control0_identify_state] = {"control0_identify_state", 0x0000, 0x04, OD_INTEGER32, OD_RO, 4},
+    /* 系统操作最大子索引 */
+    [OD_NAME_system_max_subindex] = {"system_max_subindex", 0x1000, 0x00, OD_UNSIGNED8, OD_RO, 1},
+    /* 写1复位轴0故障；须失能；不是MCU重启 */
+    [OD_NAME_system_fault_reset] = {"system_fault_reset", 0x1000, 0x01, OD_UNSIGNED32, OD_WO, 4},
+    /* 写1同步保存Flash；须失能且参数已应用 */
+    [OD_NAME_system_save_flash] = {"system_save_flash", 0x1000, 0x02, OD_UNSIGNED32, OD_WO, 4},
+    /* 写1应用RAM参数并重新初始化控制器及编码器；须失能 */
+    [OD_NAME_system_apply_config] = {"system_apply_config", 0x1000, 0x03, OD_UNSIGNED32, OD_WO, 4},
+    /* 最近Flash加载或保存状态；0成功/1空白/2不兼容/3损坏/4忙/5擦写错误/6校验错误 */
+    [OD_NAME_system_flash_status] = {"system_flash_status", 0x1000, 0x04, OD_UNSIGNED32, OD_RO, 4},
+    /* 1表示通信修改参数后尚未成功应用；禁止使能及保存 */
+    [OD_NAME_system_config_pending] = {"system_config_pending", 0x1000, 0x05, OD_UNSIGNED32, OD_RO, 4},
     /* 电机参数最大子索引 */
     [OD_NAME_motor0_max_subindex] = {"motor0_max_subindex", 0x2000, 0x00, OD_UNSIGNED8, OD_RO, 1},
     /* 电机类型 motor_type */

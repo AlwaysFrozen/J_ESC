@@ -45,6 +45,8 @@
 /* USER CODE BEGIN PV */
 static uint32_t hrt_last_timestamp;
 static uint32_t rt_last_timestamp;
+static volatile uint8_t hrt_timestamp_valid;
+static volatile uint8_t rt_timestamp_valid;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -54,6 +56,19 @@ static uint32_t rt_last_timestamp;
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static uint8_t debug_timing_running(void)
+{
+  return (((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) != 0U) &&
+          ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0U)) ? 1U : 0U;
+}
+
+/* Called with interrupts masked. A stopped counter is a measurement gap,
+ * not a long control period. The first interval after recovery is unknown. */
+void Debug_Timing_Rebase(void)
+{
+  hrt_timestamp_valid = 0U;
+  rt_timestamp_valid = 0U;
+}
 
 /* USER CODE END 0 */
 
@@ -216,12 +231,15 @@ void ADC_IRQHandler(void)
 {
   /* USER CODE BEGIN ADC_IRQn 0 */
   uint32_t hrt_start = GET_DBG_TIM_CNT;
+  uint8_t timing_valid = debug_timing_running();
   uint32_t consume_cycles;
   uint8_t hrt_event = ((hadc1.Instance->SR & ADC_FLAG_JEOC) != 0U) ? 1U : 0U;
   if (hrt_event != 0U)
   {
-    global_status.core_status.hrt_interval_us = DBG_CNT_TO_US(hrt_start - hrt_last_timestamp);
+    global_status.core_status.hrt_interval_us = (timing_valid && hrt_timestamp_valid)
+        ? DBG_CNT_TO_US(hrt_start - hrt_last_timestamp) : 0.0f;
     hrt_last_timestamp = hrt_start;
+    hrt_timestamp_valid = timing_valid;
   }
   /* USER CODE END ADC_IRQn 0 */
   HAL_ADC_IRQHandler(&hadc1);
@@ -231,7 +249,8 @@ void ADC_IRQHandler(void)
   if (hrt_event != 0U)
   {
     consume_cycles = GET_DBG_TIM_CNT - hrt_start;
-    global_status.core_status.hrt_consume_us = DBG_CNT_TO_US(consume_cycles);
+    global_status.core_status.hrt_consume_us = (timing_valid && debug_timing_running())
+        ? DBG_CNT_TO_US(consume_cycles) : 0.0f;
     if (global_status.core_status.hrt_consume_us > global_status.core_status.hrt_consume_us_max)
     {
       global_status.core_status.hrt_consume_us_max = global_status.core_status.hrt_consume_us;
@@ -262,13 +281,17 @@ void TIM2_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM2_IRQn 0 */
   uint32_t rt_start = GET_DBG_TIM_CNT;
-  global_status.core_status.rt_interval_us = DBG_CNT_TO_US(rt_start - rt_last_timestamp);
+  uint8_t timing_valid = debug_timing_running();
+  global_status.core_status.rt_interval_us = (timing_valid && rt_timestamp_valid)
+      ? DBG_CNT_TO_US(rt_start - rt_last_timestamp) : 0.0f;
   rt_last_timestamp = rt_start;
+  rt_timestamp_valid = timing_valid;
   realtime_callback();
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
-  global_status.core_status.rt_consume_us = DBG_CNT_TO_US(GET_DBG_TIM_CNT - rt_start);
+  global_status.core_status.rt_consume_us = (timing_valid && debug_timing_running())
+      ? DBG_CNT_TO_US(GET_DBG_TIM_CNT - rt_start) : 0.0f;
   if (global_status.core_status.rt_consume_us > global_status.core_status.rt_consume_us_max)
   {
     global_status.core_status.rt_consume_us_max = global_status.core_status.rt_consume_us;

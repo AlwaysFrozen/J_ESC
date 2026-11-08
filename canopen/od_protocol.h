@@ -17,6 +17,7 @@ typedef struct {
     size_t input_length;
     size_t output_length;
     bool discard;
+    bool enter_binary; /* B sequence: transport switches only after reply completion. */
     OD_ProtocolAccess access;
     void *context;
 } OD_Protocol;

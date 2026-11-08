@@ -51,10 +51,21 @@ add_custom_command(
 add_custom_target(generate_od DEPENDS "${OD_GENERATED_DIR}/od_generated.stamp")
 add_dependencies(${CMAKE_PROJECT_NAME} generate_od)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    canopen/od.c canopen/od_user.c canopen/od_protocol.c canopen/od_cdc.c
+    canopen/od.c canopen/od_user.c canopen/od_protocol.c canopen/od_cdc.c canopen/od_commands.c
+    canopen/od_wire.c canopen/od_scope.c canopen/od_motion.c
     "${OD_GENERATED_DIR}/od_generated.c")
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     "${OD_GENERATED_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/canopen")
+
+# These files execute in the 20 kHz ISR. Unoptimized typed sampling exceeds
+# 50 us; active FOC plus synchronous encoder traffic also needs headroom.
+# Keep the rest of Debug at -O0. Locals in these files may be optimized out.
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    set_property(SOURCE canopen/od.c canopen/od_scope.c
+        motor_control/motor.c motor_control/control/foc.c
+        motor_control/encoder/encoder.c motor_control/encoder/as5048a/as5048a.c
+        motor_control/hal/encoder_spi.c APPEND PROPERTY COMPILE_OPTIONS -O2)
+endif()
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

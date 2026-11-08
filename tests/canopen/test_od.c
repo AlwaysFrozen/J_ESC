@@ -208,9 +208,16 @@ static int test_readonly_runtime(void)
     return 0;
 }
 
+int test_wire(void);
+int test_scope(void);
+
 int main(void)
 {
-    int result = test_generated();
+    int result = test_wire();
+    if (result != 0) return result;
+    result = test_scope();
+    if (result != 0) return result;
+    result = test_generated();
     if (result != 0) return result;
     result = test_native_storage();
     if (result != 0) return result;

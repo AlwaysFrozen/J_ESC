@@ -1,6 +1,7 @@
 /* USER-OWNED FILE: the generator never changes this file. */
 #include "od_user.h"
 #include "global.h"
+#include "od_commands.h"
 
 /* Preserve the existing GNU ARM short-enum layout in configuration and status.
  * Enum values are explicitly widened to the CSV's UNSIGNED32 wire format. */
@@ -75,6 +76,9 @@ OD_Result od_user_init(const OD_Entry **first_missing)
     if (first_missing != NULL) *first_missing = NULL;
     if (od_dictionary.frozen) return OD_FROZEN;
     OD_Result result;
+
+    result = od_commands_bind();
+    if (result != OD_OK) return result;
 
     result = OD_BIND_RO(od_dictionary, motor0_max_subindex, &motor0_max_subindex);
     if (result != OD_OK) return result;

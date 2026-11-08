@@ -784,6 +784,23 @@ void encoder_update_frt(int index)
         break;
 
     case Encoder_Type_SPI_AS5048A:{
+        /* All synchronous SPI transactions stay in this ISR, including the
+         * explicit host fault-reset request. Never race a preempted SPI call. */
+        if (p_encoder_status->encoder_special_function_flag == ENCODER_SPECIAL_FUNCTION_RESET_ERROR) {
+            as5048a_encoder_reset_error(index);
+            p_encoder_status->encoder_special_function_flag = 0;
+            p_encoder_status->encoder_abs_position_valid = false;
+            break;
+        }
+        /* This synchronous device has no UART/DMA producer. Refresh it here
+         * before consuming the cached angle, and never publish invalid frames. */
+        as5048a_encoder_read_single_turn(index);
+        if (!as5048a_encoder_get_pos_valid(index)) {
+            p_encoder_status->encoder_abs_position_valid = false;
+            if (as5048a_encoder_get_wdg_error(index)) motor_set_err(index, FAULT_CODE_ENCODER_LOST);
+            else if (as5048a_encoder_get_error(index)) motor_set_err(index, FAULT_CODE_ENCODER_FAULT);
+            break;
+        }
         p_encoder_status->encoder_abs_cnt_last = p_encoder_status->encoder_abs_cnt;
         p_encoder_status->encoder_abs_cnt      = as5048a_encoder_get_abs(index);
         int32_t delta                            = p_encoder_status->encoder_abs_cnt - p_encoder_status->encoder_abs_cnt_last;

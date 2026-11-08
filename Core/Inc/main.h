@@ -53,6 +53,8 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void DWT_Init(void);
+void Debug_Timing_Rebase(void);
 
 /* USER CODE END EFP */
 

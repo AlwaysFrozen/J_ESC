@@ -17,6 +17,8 @@
 #include "stm32f4xx_ll_tim.h"
 #include "adc.h"
 #include "tim.h"
+#include "od_cdc.h"
+#include "od_motion.h"
 
 /**
  * @brief 高频实时中断回调
@@ -24,6 +26,9 @@
  */
 void high_realtime_callback(void)
 {
+    /* Do not replace the planner while a lower-priority control ISR is
+     * suspended halfway through updating it. Defer to a non-nested boundary. */
+    od_motion_tick((SCB->ICSR & SCB_ICSR_RETTOBASE_Msk) != 0U);
     volatile Power_Status_t *p_power_status                   = &global_status.power_status;
     volatile Peripheral_Raw_Status_t *p_peripheral_raw_status = &global_status.peripheral_raw_status;
 
@@ -34,6 +39,9 @@ void high_realtime_callback(void)
     encoder_update_frt(0);
 
     motor_update_frt(0);
+    /* Snapshot after this cycle's encoder/current-control updates. Slow-loop
+     * fields retain their own update rate; they are not a cross-ISR transaction. */
+    od_cdc_sample_tick();
 }
 
 /**

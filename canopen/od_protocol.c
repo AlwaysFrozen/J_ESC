@@ -49,6 +49,12 @@ static void process_line(OD_Protocol *p)
     uint32_t sequence = 0, index, subindex, type, length, value;
     uint8_t data[8];
     bool write = s[0] == 'W';
+    if (size == 10 && s[0] == 'B' && s[1] == ' ' && parse_hex(s + 2, 8, &sequence)) {
+        const uint8_t version = 2;
+        reply(p, sequence, OD_OK, &version, 1);
+        p->enter_binary = true;
+        return;
+    }
     /* Even malformed commands echo their sequence if it can be recovered. */
     if (size >= 10 && !parse_hex(&s[2], 8, &sequence)) sequence = 0;
     if (size < 26 || (s[0] != 'R' && !write) ||
@@ -82,6 +88,7 @@ void od_protocol_init(OD_Protocol *p, OD_ProtocolAccess access, void *context)
     p->input_length = 0;
     p->output_length = 0;
     p->discard = false;
+    p->enter_binary = false;
     p->access = access;
     p->context = context;
 }

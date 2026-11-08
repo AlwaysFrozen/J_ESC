@@ -1,4 +1,15 @@
 name,index,subindex,data_type,access,description
+control0_max_subindex,0x0000,0x00,UNSIGNED8,ro,轴0控制最大子索引
+control0_enable,0x0000,0x01,UNSIGNED32,wo,轴0使能1/失能0；使能后不自动启动运动
+control0_align,0x0000,0x02,UNSIGNED32,wo,写1启动寻相；须已使能且无活动操作
+control0_identify,0x0000,0x03,UNSIGNED32,wo,辨识1电阻/2电感/3极对数/4磁链；5齿槽/6惯量/7摩擦/8重力暂不支持
+control0_identify_state,0x0000,0x04,INTEGER32,ro,当前辨识内部阶段；与辨识类型及电机故障码结合判断
+system_max_subindex,0x1000,0x00,UNSIGNED8,ro,系统操作最大子索引
+system_fault_reset,0x1000,0x01,UNSIGNED32,wo,写1复位轴0故障；须失能；不是MCU重启
+system_save_flash,0x1000,0x02,UNSIGNED32,wo,写1同步保存Flash；须失能且参数已应用
+system_apply_config,0x1000,0x03,UNSIGNED32,wo,写1应用RAM参数并重新初始化控制器及编码器；须失能
+system_flash_status,0x1000,0x04,UNSIGNED32,ro,最近Flash加载或保存状态；0成功/1空白/2不兼容/3损坏/4忙/5擦写错误/6校验错误
+system_config_pending,0x1000,0x05,UNSIGNED32,ro,1表示通信修改参数后尚未成功应用；禁止使能及保存
 motor0_max_subindex,0x2000,0x00,UNSIGNED8,ro,电机参数最大子索引
 motor0_type,0x2000,0x01,UNSIGNED32,rw,电机类型 motor_type
 motor0_struct,0x2000,0x02,UNSIGNED32,rw,电机结构 motor_struct

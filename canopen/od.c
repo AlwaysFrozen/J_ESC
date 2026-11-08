@@ -22,12 +22,30 @@ static OD_Result bind_pointer(OD_Dictionary *d, size_t slot, const volatile void
     if (d->frozen) return OD_FROZEN;
     if (d->entries[slot].type != type) return OD_TYPE_MISMATCH;
     if (!writable && d->entries[slot].access != OD_RO) return OD_ACCESS_DENIED;
-    if (d->bindings[slot].data != NULL) return OD_ALREADY_BOUND;
+    if (d->bindings[slot].data != NULL || d->bindings[slot].write_handler != NULL) return OD_ALREADY_BOUND;
     d->bindings[slot].data = data;
     d->bindings[slot].writable = writable;
     d->bindings[slot].native_int = native_int;
     d->bindings[slot].widen_u8 = false;
     return OD_OK;
+}
+
+OD_Result od_bind_command(OD_Dictionary *d, size_t slot, OD_Write_Handler handler)
+{
+    if (!valid_dictionary(d) || slot >= d->count || handler == NULL) return OD_BAD_ARGUMENT;
+    if (d->frozen) return OD_FROZEN;
+    if (d->entries[slot].access != OD_WO) return OD_ACCESS_DENIED;
+    if (d->entries[slot].type != OD_UNSIGNED32 || d->entries[slot].size != 4U) return OD_TYPE_MISMATCH;
+    if (d->bindings[slot].data != NULL || d->bindings[slot].write_handler != NULL) return OD_ALREADY_BOUND;
+    d->bindings[slot].write_handler = handler;
+    d->bindings[slot].writable = true;
+    return OD_OK;
+}
+
+bool od_is_command(const OD_Dictionary *d, uint16_t index, uint8_t subindex)
+{
+    const OD_Entry *entry = od_find(d, index, subindex);
+    return entry != NULL && d->bindings[entry - d->entries].write_handler != NULL;
 }
 
 #define OD_DEFINE_BIND(suffix, c_type, od_type) \
@@ -76,7 +94,7 @@ OD_Result od_freeze(OD_Dictionary *d, const OD_Entry **first_missing)
     if (first_missing != NULL) *first_missing = NULL;
     if (!valid_dictionary(d)) return OD_BAD_ARGUMENT;
     for (size_t i = 0; i < d->count; ++i) {
-        if (d->bindings[i].data == NULL) {
+        if (d->bindings[i].data == NULL && d->bindings[i].write_handler == NULL) {
             if (first_missing != NULL) *first_missing = &d->entries[i];
             return OD_NOT_BOUND;
         }
@@ -139,7 +157,7 @@ static OD_Result check_access(const OD_Dictionary *d, uint16_t index, uint8_t su
     const OD_Entry *e = &d->entries[*slot];
     if ((e->access & (write ? OD_WO : OD_RO)) == 0) return OD_ACCESS_DENIED;
     if (length != e->size) return OD_LENGTH_MISMATCH;
-    if (d->bindings[*slot].data == NULL) return OD_NOT_BOUND;
+    if (d->bindings[*slot].data == NULL && d->bindings[*slot].write_handler == NULL) return OD_NOT_BOUND;
     if (!d->frozen) return OD_NOT_READY;
     if (write && !d->bindings[*slot].writable) return OD_ACCESS_DENIED;
     return OD_OK;
@@ -157,14 +175,36 @@ OD_Result od_read(const OD_Dictionary *d, uint16_t index, uint8_t subindex,
     size_t slot;
     OD_Result result = check_access(d, index, subindex, length, false, &slot);
     if (result != OD_OK) return result;
-    const volatile void *data = d->bindings[slot].data;
-    if (d->bindings[slot].widen_u8) {
+    OD_ReadPlan plan = {&d->entries[slot], &d->bindings[slot]};
+    return od_read_prepared(&plan, buffer, length);
+}
+
+OD_Result od_prepare_read(const OD_Dictionary *d, uint16_t index, uint8_t subindex, OD_ReadPlan *plan)
+{
+    if (plan == NULL) return OD_BAD_ARGUMENT;
+    const OD_Entry *entry = od_find(d, index, subindex);
+    size_t slot;
+    OD_Result result = check_access(d, index, subindex, entry == NULL ? 0 : entry->size, false, &slot);
+    if (result != OD_OK) return result;
+    *plan = (OD_ReadPlan){&d->entries[slot], &d->bindings[slot]};
+    return OD_OK;
+}
+
+OD_Result od_read_prepared(const OD_ReadPlan *plan, uint8_t *buffer, size_t length)
+{
+    if (plan == NULL || plan->entry == NULL || plan->binding == NULL || buffer == NULL)
+        return OD_BAD_ARGUMENT;
+    if (length != plan->entry->size) return OD_LENGTH_MISMATCH;
+    if ((plan->entry->access & OD_RO) == 0) return OD_ACCESS_DENIED;
+    if (plan->binding->data == NULL) return OD_NOT_BOUND;
+    const volatile void *data = plan->binding->data;
+    if (plan->binding->widen_u8) {
         uint32_t value = *(const volatile uint8_t *)data;
         encode(buffer, (const unsigned char *)&value, sizeof(value));
         return OD_OK;
     }
-    if (d->bindings[slot].native_int) {
-        if (d->entries[slot].type == OD_INTEGER32) {
+    if (plan->binding->native_int) {
+        if (plan->entry->type == OD_INTEGER32) {
             int value = *(const volatile int *)data;
             encode(buffer, (const unsigned char *)&value, sizeof(value));
         } else {
@@ -173,7 +213,7 @@ OD_Result od_read(const OD_Dictionary *d, uint16_t index, uint8_t subindex,
         }
         return OD_OK;
     }
-    switch (d->entries[slot].type) {
+    switch (plan->entry->type) {
     case OD_BOOLEAN: buffer[0] = *(const volatile bool *)data ? 1U : 0U; return OD_OK;
 #define OD_READ_CASE(od_type, c_type) \
     case od_type: { \
@@ -192,6 +232,8 @@ OD_Result od_write(OD_Dictionary *d, uint16_t index, uint8_t subindex,
     size_t slot;
     OD_Result result = check_access(d, index, subindex, length, true, &slot);
     if (result != OD_OK) return result;
+    if (d->bindings[slot].write_handler != NULL)
+        return d->bindings[slot].write_handler(&d->entries[slot], buffer, length);
     /* Only writable typed binders can authorize this removal of const. */
     volatile void *data = (volatile void *)d->bindings[slot].data;
     if (d->bindings[slot].widen_u8) {
