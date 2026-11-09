@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Format motor_control",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "$ErrorActionPreference = 'Stop'; if (-not (Get-Command clang-format -ErrorAction SilentlyContinue)) { throw 'clang-format was not found in PATH. Install LLVM and add its bin directory to PATH.' }; $files = @(Get-ChildItem -LiteralPath 'motor_control' -Recurse -File | Where-Object { $_.Extension -in '.c', '.h', '.cc', '.cpp', '.cxx', '.hh', '.hpp', '.hxx', '.inc', '.inl' }); foreach ($file in $files) { & clang-format -i --style=file --fallback-style=none -- $file.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }; Write-Host ('Formatted {0} files in motor_control.' -f $files.Count)"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        }
+    ]
+}
