@@ -108,7 +108,7 @@ Item {
             studio.openDemo()
             tryCompare(studio, "connected", true)
             tryCompare(studio, "busy", false)
-            mouseClick(button("page-8"))
+            mouseClick(button("page-7"))
             studio.scope.mode = 1
             mouseClick(button("scopeStart"))
             tryCompare(studio.scope, "active", true)
@@ -141,6 +141,9 @@ Item {
             compare(studio.scope.info.error, "")
         }
         function test_f_recordPlaybackAndExport() {
+            mouseClick(button("scopeFiles"))
+            // Expanding file controls reflows the toolbar before the next click.
+            wait(60)
             studio.scope.singleShot = false
             studio.scope.recordUrl = recordingTestUrl
             mouseClick(button("scopeRecord"))
@@ -199,7 +202,7 @@ Item {
             tryVerify(function(){return status("使能") === "0"})
         }
         function test_h_fftAndSeparateAxes() {
-            mouseClick(button("page-8"))
+            mouseClick(button("page-7"))
             studio.scope.openRecording(recordingTestUrl)
             tryCompare(studio.scope, "fileBusy", false)
             mouseClick(button("scopeSeparateAxes"))
@@ -218,6 +221,132 @@ Item {
             dialog.close()
             wait(40)
             verify(uiHarness.saveWindow(app, "phase5-axes.png"))
+        }
+        function test_i_controlWhileCapturing() {
+            let files = findChild(app.contentItem, "scopeFiles")
+            if (files.checked) mouseClick(files)
+            mouseClick(button("page-7"))
+            studio.scope.recordEnabled = false
+            studio.scope.singleShot = false
+            studio.scope.mode = 1
+            let axes = findChild(app.contentItem, "scopeSeparateAxes")
+            if (axes.checked) mouseClick(axes)
+            mouseClick(button("scopeStart"))
+            tryCompare(studio.scope, "active", true)
+            tryVerify(function(){return (studio.scope.info.received || 0) > 2500})
+            compare(studio.busy, true)
+            tryCompare(studio, "controlBusy", false)
+            mouseClick(button("motorEnable"))
+            tryVerify(function(){return status("使能") === "1"})
+            studio.command("align")
+            tryCompare(studio, "controlBusy", false)
+            mouseClick(button("motionSubmit"))
+            tryVerify(function(){return !!studio.motion.active})
+            let id = studio.motion.id
+            let received = studio.scope.info.received
+            // Exercise heartbeat renewal concurrently with the live stream.
+            wait(1200)
+            verify(studio.motion.active)
+            verify(studio.scope.info.received > received)
+            mouseClick(button("motionSubmit"))
+            tryVerify(function(){return studio.motion.id > id})
+            verify(uiHarness.saveWindow(app, "control-scope-live.png"))
+            mouseClick(button("motionStop"))
+            tryVerify(function(){return !studio.motion.active})
+            studio.refreshStatus()
+            tryVerify(function(){return status("使能") === "0"})
+            compare(studio.scope.active, true)
+            mouseClick(button("motorEnable"))
+            tryVerify(function(){return status("使能") === "1"})
+            mouseClick(button("motorDisable"))
+            tryVerify(function(){return status("使能") === "0"})
+            compare(studio.scope.active, true)
+            app.width = 1120; app.height = 740
+            wait(100)
+            let plot = findChild(app.contentItem, "scopePlot")
+            let stop = button("motorDisable")
+            let start = button("motionSubmit")
+            verify(plot.visible && plot.width > 400 && plot.height >= 120)
+            let page = findChild(app.contentItem, "scopePage")
+            verify(plot.mapToItem(page, 0, plot.height).y <= page.height, "Plot must fit inside the page")
+            verify(stop.mapToItem(app.contentItem, 0, 0).y >= 0)
+            verify(start.mapToItem(app.contentItem, 0, start.height).y < app.height)
+            verify(uiHarness.saveWindow(app, "control-scope-compact.png"))
+            mouseClick(button("scopeFiles"))
+            wait(60)
+            verify(plot.mapToItem(page, 0, plot.height).y <= page.height, "Expanded file controls must fit")
+            mouseClick(button("scopeFiles"))
+            wait(60)
+            mouseClick(button("scopeStop"))
+            tryCompare(studio.scope, "active", false)
+            compare(studio.scope.info.error, "")
+            app.width = 1460; app.height = 940
+        }
+        function dragPlot(item, x1, y1, x2, y2, which) {
+            mouseMove(item, x1, y1)
+            mousePress(item, x1, y1, which)
+            for (let step = 1; step <= 8; ++step)
+                mouseMove(item, x1 + (x2-x1)*step/8, y1 + (y2-y1)*step/8, 10)
+            mouseRelease(item, x2, y2, which)
+        }
+        function test_j_crosshairAndDrag() {
+            mouseClick(button("page-7"))
+            studio.scope.openRecording(recordingTestUrl)
+            tryCompare(studio.scope, "fileBusy", false)
+            mouseClick(button("scopeResetView"))
+            studio.scope.zoom(0.25)
+            let area = findChild(app.contentItem, "scopeInteraction")
+            let plot = findChild(app.contentItem, "scopePlot")
+            tryVerify(function(){return plot.displayPoints > 0})
+            compare(findChild(app.contentItem, "scopeCrosshair").checked, false)
+            mouseMove(area, area.width*0.4, area.height*0.4)
+            compare(area.crosshairVisible, false)
+            mouseClick(button("scopeCrosshair"))
+            mouseMove(area, area.width*0.4, area.height*0.4)
+            tryCompare(area, "crosshairVisible", true)
+            verify(Math.abs(area.hoverTime - (studio.scope.viewStart + studio.scope.span*0.4)) < studio.scope.span*0.005)
+            verify(Math.abs(area.hoverValue - (plot.maximum - 0.4*(plot.maximum-plot.minimum))) < (plot.maximum-plot.minimum)*0.005)
+            mouseClick(area, area.width*0.3, area.height*0.5, Qt.LeftButton)
+            mouseClick(area, area.width*0.7, area.height*0.5, Qt.RightButton)
+            let a = studio.scope.viewStart + studio.scope.cursorA*studio.scope.span
+            let b = studio.scope.viewStart + studio.scope.cursorB*studio.scope.span
+            let end = studio.scope.viewEnd, span = studio.scope.span
+            dragPlot(area, area.width*0.4, area.height*0.5, area.width*0.6, area.height*0.5, Qt.LeftButton)
+            verify(studio.scope.viewEnd < end)
+            compare(studio.scope.span, span)
+            compare(studio.scope.following, false)
+            verify(Math.abs(studio.scope.viewStart + studio.scope.cursorA*span - a) < 1e-9)
+            verify(Math.abs(studio.scope.viewStart + studio.scope.cursorB*span - b) < 1e-9)
+            let low = plot.minimum, high = plot.maximum
+            dragPlot(area, area.width*0.5, area.height*0.4, area.width*0.5, area.height*0.6, Qt.LeftButton)
+            compare(plot.autoScale, false)
+            tryVerify(function(){return plot.minimum > low})
+            verify(Math.abs((plot.maximum-plot.minimum) - (high-low)) < 1e-6)
+            mouseMove(area, area.width*0.55, area.height*0.45)
+            verify(uiHarness.saveWindow(app, "scope-crosshair-drag.png"))
+            mouseClick(button("scopeCrosshair"))
+            mouseMove(area, area.width*0.4, area.height*0.4)
+            compare(area.crosshairVisible, false)
+            end = studio.scope.viewEnd
+            dragPlot(area, area.width*0.4, area.height*0.5, area.width*0.5, area.height*0.5, Qt.MiddleButton)
+            verify(studio.scope.viewEnd < end)
+            mouseClick(button("scopeResetView"))
+            compare(plot.autoScale, true)
+            mouseClick(button("scopeSeparateAxes"))
+            studio.scope.zoom(0.25)
+            mouseClick(button("scopeCrosshair"))
+            let channel = findChild(app.contentItem, "scopeChannelInteraction-0")
+            verify(channel !== null)
+            wait(60)
+            mouseMove(channel, channel.width*0.5, channel.height*0.5)
+            tryCompare(channel, "crosshairVisible", true)
+            end = studio.scope.viewEnd
+            dragPlot(channel, channel.width*0.4, channel.height*0.4, channel.width*0.6, channel.height*0.6, Qt.LeftButton)
+            verify(studio.scope.viewEnd < end)
+            compare(channel.waveform.autoScale, false)
+            verify(uiHarness.saveWindow(app, "scope-channel-crosshair.png"))
+            mouseClick(button("scopeResetView"))
+            compare(channel.waveform.autoScale, true)
         }
         function cleanupTestCase() { app.close() }
     }

@@ -22,6 +22,7 @@
 #include "dma.h"
 
 /* USER CODE BEGIN 0 */
+#include "board.h"
 
 /* USER CODE END 0 */
 
@@ -44,7 +45,7 @@ void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA2_Stream4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream4_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA2_Stream4_IRQn, BOARD_IRQ_PRIORITY_PERIPHERAL, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream4_IRQn);
 
 }

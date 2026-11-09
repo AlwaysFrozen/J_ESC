@@ -21,11 +21,11 @@ add_library(studio_plot STATIC src/WaveformItem.cpp src/WaveformItem.h)
 target_link_libraries(studio_plot PUBLIC studio_core Qt6::Quick)
 qt_add_executable(esc_studio src/main.cpp src/Backend.cpp src/Backend.h)
 target_link_libraries(esc_studio PRIVATE studio_plot Qt6::Gui Qt6::Quick Qt6::QuickControls2 Qt6::SerialPort)
-foreach(qml Main ParameterPage MotorPage ScopePage)
+foreach(qml Main ParameterPage MotorPage ScopePage ScopeInteraction)
     set_source_files_properties(qml/${qml}.qml PROPERTIES QT_RESOURCE_ALIAS ${qml}.qml)
 endforeach()
 qt_add_qml_module(esc_studio URI JescStudio VERSION 1.0
-    QML_FILES qml/Main.qml qml/ParameterPage.qml qml/MotorPage.qml qml/ScopePage.qml)
+    QML_FILES qml/Main.qml qml/ParameterPage.qml qml/MotorPage.qml qml/ScopePage.qml qml/ScopeInteraction.qml)
 qt_add_resources(esc_studio dictionary PREFIX "/" BASE ../..
     FILES ../../canopen/object_dictionary.csv)
 

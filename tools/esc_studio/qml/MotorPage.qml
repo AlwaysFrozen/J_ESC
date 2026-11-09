@@ -2,69 +2,77 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-ColumnLayout {
-    spacing: 16
-    Rectangle {
-        Layout.fillWidth: true; Layout.preferredHeight: 104; radius: 8; color: "#152838"; border.color: "#244c55"
+Rectangle {
+    color: "#121f2e"; radius: 7
+    ColumnLayout {
+        anchors.fill: parent; anchors.margins: 12; spacing: 10
         RowLayout {
-            anchors.fill: parent; anchors.margins: 20; spacing: 12
+            Label { text: "轴 0 / 电机控制"; font.pixelSize: 16; font.bold: true; color: "#d9f4ee" }
+            Item { Layout.fillWidth: true }
+            Label { text: studio.connected ? "在线" : "离线"; color: studio.connected ? "#75e6ca" : "#8196b1" }
+        }
+        Button {
+            objectName: "motorDisable"; text: "失能 / 停止"; Layout.fillWidth: true
+            enabled: studio.connected && studio.commandAvailable("disable")
+            palette.button: "#8c3e43"; onClicked: studio.command("disable")
+        }
+        RowLayout {
+            Button { objectName: "motorEnable"; text: "使能"; Layout.fillWidth: true; enabled: studio.connected && !studio.controlBusy && studio.commandAvailable("enable"); onClicked: studio.command("enable") }
+            Button { objectName: "motorFaultReset"; text: "故障复位"; Layout.fillWidth: true; enabled: studio.connected && !studio.controlBusy && studio.commandAvailable("fault_reset"); onClicked: studio.command("fault_reset") }
+        }
+        ScrollView {
+            id: controlsScroll; Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+            contentWidth: availableWidth
             ColumnLayout {
-                Layout.fillWidth: true
-                Label { text: "轴 0"; font.pixelSize: 20; font.bold: true; color: "#d9f4ee" }
-                Label { text: "使能后进入无运动模式，寻相与辨识需要单独启动。"; color: "#86acae"; font.pixelSize: 11 }
-            }
-            Button { objectName: "motorEnable"; text: "使能"; enabled: studio.connected && !studio.busy && studio.commandAvailable("enable"); onClicked: studio.command("enable") }
-            Button {
-                text: "失能 / 停止"; enabled: studio.connected && studio.commandAvailable("disable")
-                objectName: "motorDisable"
-                palette.button: "#8c3e43"; onClicked: studio.command("disable")
-            }
-            Button { text: "故障复位"; enabled: studio.connected && !studio.busy && studio.commandAvailable("fault_reset"); onClicked: studio.command("fault_reset") }
-        }
-    }
-    RowLayout {
-        spacing: 12
-        Button { text: "启动寻相"; enabled: studio.connected && !studio.busy && studio.commandAvailable("align"); onClicked: studio.command("align") }
-        ComboBox { id: identify; model: ["电阻 Rs", "电感 Ld/Lq", "极对数", "磁链"]; Layout.preferredWidth: 155; enabled: !studio.busy }
-        Button { text: "启动辨识"; enabled: studio.connected && !studio.busy && studio.commandAvailable("identify"); onClicked: studio.command("identify", identify.currentIndex+1) }
-        Item { Layout.fillWidth: true }
-        Button { text: "刷新状态"; enabled: studio.connected && !studio.busy; onClicked: studio.refreshStatus() }
-    }
-    Rectangle {
-        Layout.fillWidth: true; Layout.preferredHeight: 160; color: "#172435"; radius: 6
-        ColumnLayout {
-            anchors.fill: parent; anchors.margins: 12
-            Label { text: "基础运动目标 · 接口已接入，真实电机尚未验收"; color: "#c6deea" }
-            RowLayout {
-                ComboBox { id: targetMode; objectName: "motionMode"; model: ["电流 A", "速度", "位置"]; Layout.preferredWidth: 130 }
-                TextField { id: target; objectName: "motionTarget"; text: "0"; placeholderText: "目标"; Layout.preferredWidth: 115 }
-                TextField { id: targetSpeed; text: "10"; enabled: targetMode.currentIndex===2; placeholderText: "速度"; Layout.preferredWidth: 115 }
-                TextField { id: targetAcc; text: "100"; enabled: targetMode.currentIndex>0; placeholderText: "加速度"; Layout.preferredWidth: 115 }
-                TextField { id: targetJerk; text: "1000"; enabled: targetMode.currentIndex>0; placeholderText: "jerk"; Layout.preferredWidth: 115 }
-                Button { objectName: "motionSubmit"; text: "提交完整目标"; enabled: studio.connected && !studio.busy && !!studio.motion.supported; onClicked: studio.submitMotion(targetMode.currentIndex+1,target.text,targetSpeed.text,targetAcc.text,targetJerk.text) }
-                Button { objectName: "motionStop"; text: "停止在线控制"; enabled: studio.connected && !!studio.motion.supported; onClicked: studio.stopMotion() }
-            }
-            Label { text: "旋转轴：deg、deg/s；直线轴：mm、mm/s。加速度、jerk 分别为相应轴单位/s²、/s³。"; color: "#91aac3"; font.pixelSize: 10 }
-            Label { text: "须已使能、校准且寻相完成。只提交目标，不自动使能。在线控制心跳超时 500 ms 或断线将失能。"; color: "#d6bc8b"; font.pixelSize: 10 }
-            Label { text: (studio.motion.state || "固件未提供运动接口") + "  " + (studio.motion.error || ""); color: "#85d8c0" }
-        }
-    }
-    GridLayout {
-        columns: 4; columnSpacing: 12; rowSpacing: 12; Layout.fillWidth: true
-        Repeater {
-            model: studio.motorStatus
-            delegate: Rectangle {
-                required property var modelData
-                Layout.fillWidth: true; Layout.preferredHeight: 72
-                radius: 7; color: "#172435"; border.color: "#26384d"
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 4
-                    Label { text: modelData.label; color: "#8ba2bd"; font.pixelSize: 11 }
-                    Label { text: modelData.value; color: "#d6ede7"; font.pixelSize: 18; font.family: "Consolas" }
+                width: controlsScroll.availableWidth; spacing: 12
+                Label { text: "运动目标"; color: "#c6deea"; font.bold: true }
+                ComboBox { id: targetMode; objectName: "motionMode"; model: ["电流 / A", "速度 / 轴单位每秒", "位置 / 轴单位"]; Layout.fillWidth: true }
+                GridLayout {
+                    columns: 2; Layout.fillWidth: true; columnSpacing: 8; rowSpacing: 6
+                    Label { text: "目标"; color: "#91aac3" }
+                    TextField { id: target; objectName: "motionTarget"; text: "0"; selectByMouse: true; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                    Label { text: "速度"; color: "#91aac3"; visible: targetMode.currentIndex===2 }
+                    TextField { id: targetSpeed; text: "10"; visible: targetMode.currentIndex===2; selectByMouse: true; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                    Label { text: "加速度"; color: "#91aac3"; visible: targetMode.currentIndex>0 }
+                    TextField { id: targetAcc; text: "100"; visible: targetMode.currentIndex>0; selectByMouse: true; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                    Label { text: "jerk"; color: "#91aac3"; visible: targetMode.currentIndex>0 }
+                    TextField { id: targetJerk; text: "1000"; visible: targetMode.currentIndex>0; selectByMouse: true; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                 }
+                Button { objectName: "motionSubmit"; text: "提交完整目标"; Layout.fillWidth: true; enabled: studio.connected && !studio.controlBusy && !!studio.motion.supported; onClicked: studio.submitMotion(targetMode.currentIndex+1,target.text,targetSpeed.text,targetAcc.text,targetJerk.text) }
+                Button { objectName: "motionStop"; text: "停止在线控制"; Layout.fillWidth: true; enabled: studio.connected && !!studio.motion.supported; onClicked: studio.stopMotion() }
+                Label { text: (studio.motion.state || "固件未提供运动接口") + "  " + (studio.motion.error || ""); Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#85d8c0" }
+                Label { text: "旋转轴用 deg，直线轴用 mm；速度、加速度和 jerk 为相应时间导数。须使能、校准且寻相完成，提交目标不会自动使能。在线心跳超时 500 ms 将失能。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#91aac3"; font.pixelSize: 10 }
+                Rectangle { Layout.fillWidth: true; height: 1; color: "#29374a" }
+                Label { text: "寻相与辨识"; color: "#c6deea"; font.bold: true }
+                Button { objectName: "motorAlign"; text: "启动寻相"; Layout.fillWidth: true; enabled: studio.connected && !studio.controlBusy && studio.commandAvailable("align"); onClicked: studio.command("align") }
+                RowLayout {
+                    ComboBox { id: identify; model: ["电阻 Rs", "电感 Ld/Lq", "极对数", "磁链"]; Layout.fillWidth: true; Layout.minimumWidth: 0; enabled: !studio.controlBusy }
+                    Button { text: "启动辨识"; enabled: studio.connected && !studio.controlBusy && studio.commandAvailable("identify"); onClicked: studio.command("identify", identify.currentIndex+1) }
+                }
+                Label { text: "使能后进入无运动模式。手动寻相、辨识不受在线心跳保护，结束后请显式失能。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#d6bc8b"; font.pixelSize: 10 }
+                RowLayout {
+                    Label { text: "设备状态"; color: "#c6deea"; font.bold: true }
+                    Item { Layout.fillWidth: true }
+                    Button { text: "刷新"; enabled: studio.connected && !studio.controlBusy; onClicked: studio.refreshStatus() }
+                }
+                GridLayout {
+                    columns: 2; columnSpacing: 6; rowSpacing: 6; Layout.fillWidth: true
+                    Repeater {
+                        model: studio.motorStatus
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true; Layout.preferredHeight: 58; Layout.minimumWidth: 0
+                            radius: 5; color: "#172435"; border.color: "#26384d"
+                            ColumnLayout {
+                                anchors.fill: parent; anchors.margins: 8; spacing: 2
+                                Label { text: modelData.label; color: "#8ba2bd"; font.pixelSize: 10 }
+                                Label { text: modelData.value; Layout.fillWidth: true; elide: Text.ElideRight; color: "#d6ede7"; font.pixelSize: 16; font.family: "Consolas" }
+                            }
+                        }
+                    }
+                }
+                Label { text: "状态每秒刷新。命令确认后，请结合阶段与故障状态判断是否完成。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#8ba2bd"; font.pixelSize: 10 }
             }
         }
     }
-    Label { text: "状态每秒后台刷新。命令确认表示已接收或已启动，完成结果请结合阶段与故障状态判断。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#8ba2bd"; font.pixelSize: 11 }
-    Item { Layout.fillHeight: true }
 }

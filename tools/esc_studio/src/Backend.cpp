@@ -333,7 +333,7 @@ void Backend::writeGroup(int group)
 void Backend::readRow(int row) { if(!busy()) queue(row); }
 void Backend::submitMotion(int mode,const QString &target,const QString &speed,const QString &acc,const QString &jerk)
 {
-    if(!m_connected || busy() || !m_motion.value("supported").toBool())return;
+    if(!m_connected || controlBusy() || !m_motion.value("supported").toBool())return;
     if(mode<1 || mode>3)return;
     QByteArray payload(4,'\0');payload[0]=char(mode);
     Entry e;e.type=8;e.size=4;e.name=QStringLiteral("运动目标");
@@ -373,7 +373,8 @@ bool Backend::commandAvailable(const QString &key) const
 }
 void Backend::command(const QString &key,int identify)
 {
-    if(!m_connected || (busy() && key!="disable") || !commandAvailable(key)) return;
+    const bool configuration=key=="apply" || key=="save";
+    if(!m_connected || ((configuration?busy():controlBusy()) && key!="disable") || !commandAvailable(key)) return;
     const Command *c=findCommand(key);
     quint32 value=c->value;
     if(key=="identify") { if(identify<1 || identify>4) return; value=quint32(identify); }

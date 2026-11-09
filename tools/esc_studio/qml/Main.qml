@@ -19,7 +19,7 @@ ApplicationWindow {
     palette.highlight: "#35c9aa"
     palette.highlightedText: "#0d141f"
     property int selectedPage: 0
-    readonly property var pageTitles: ["电机参数", "编码器参数", "电机控制器", "观测器", "控制环", "环路滤波器", "HFI", "电机控制", "高速示波器"]
+    readonly property var pageTitles: ["电机参数", "编码器参数", "电机控制器", "观测器", "控制环", "环路滤波器", "HFI", "控制与示波"]
     readonly property var structs: ["Motor_Config_t", "Encoder_Config_t", "Motor_Controller_Config_t", "Motor_Observer_Config_t", "Loop_Controller_Config_t", "Loop_Filter_Config_t", "HFI_Config_t"]
     onSelectedPageChanged: studio.parameters.group = Math.min(selectedPage, 6)
     FileDialog {
@@ -31,7 +31,7 @@ ApplicationWindow {
     RowLayout {
         anchors.fill: parent; spacing: 0
         Rectangle {
-            Layout.preferredWidth: 226; Layout.fillHeight: true
+            Layout.preferredWidth: 190; Layout.fillHeight: true
             color: "#121d2c"
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 18; spacing: 8
@@ -80,25 +80,29 @@ ApplicationWindow {
                 }
             }
             RowLayout {
-                Layout.fillWidth: true; Layout.leftMargin: 28; Layout.rightMargin: 28; Layout.topMargin: 24; Layout.bottomMargin: 18
+                Layout.fillWidth: true; Layout.leftMargin: 18; Layout.rightMargin: 18; Layout.topMargin: 16; Layout.bottomMargin: 12
                 ColumnLayout {
                     Label { text: window.pageTitles[window.selectedPage]; font.pixelSize: 27; font.bold: true; color: "#edf5ff" }
-                    Label { text: window.selectedPage < 7 ? window.structs[window.selectedPage] : (window.selectedPage === 7 ? "使能、寻相、辨识与设备状态" : "控制周期采样 · 设备时间轴 · 场景图波形"); color: "#8b9fb9"; font.pixelSize: 11 }
+                    Label { text: window.selectedPage < 7 ? window.structs[window.selectedPage] : "轴 0 控制 · 同屏波形观测 · 拖动分隔线调整宽度"; color: "#8b9fb9"; font.pixelSize: 11 }
                 }
                 Item { Layout.fillWidth: true }
                 Label { text: studio.configState; color: "#87d8c2"; font.pixelSize: 11 }
             }
             StackLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true
-                Layout.leftMargin: 28; Layout.rightMargin: 28
-                currentIndex: window.selectedPage < 7 ? 0 : window.selectedPage - 6
+                Layout.leftMargin: 18; Layout.rightMargin: 18
+                currentIndex: window.selectedPage < 7 ? 0 : 1
                 ParameterPage { groupId: Math.min(window.selectedPage,6) }
-                MotorPage {}
-                ScopePage {}
+                SplitView {
+                    objectName: "controlScopeSplit"
+                    orientation: Qt.Horizontal
+                    MotorPage { SplitView.preferredWidth: 300; SplitView.minimumWidth: 280; SplitView.maximumWidth: 440 }
+                    ScopePage { SplitView.fillWidth: true; SplitView.minimumWidth: 540 }
+                }
             }
             Rectangle {
-                Layout.fillWidth: true; Layout.preferredHeight: 101
-                Layout.leftMargin: 28; Layout.rightMargin: 28; Layout.topMargin: 16; Layout.bottomMargin: 14
+                Layout.fillWidth: true; Layout.preferredHeight: window.selectedPage < 7 ? 101 : 76
+                Layout.leftMargin: 18; Layout.rightMargin: 18; Layout.topMargin: 10; Layout.bottomMargin: 10
                 color: "#131e2d"; radius: 7; border.color: "#253448"
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 12; spacing: 4

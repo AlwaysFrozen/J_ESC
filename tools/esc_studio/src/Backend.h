@@ -19,6 +19,7 @@ class Backend : public QObject {
     Q_PROPERTY(bool connected READ connected NOTIFY stateChanged)
     Q_PROPERTY(bool connecting READ connecting NOTIFY stateChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY stateChanged)
+    Q_PROPERTY(bool controlBusy READ controlBusy NOTIFY stateChanged)
     Q_PROPERTY(int pendingCount READ pendingCount NOTIFY stateChanged)
     Q_PROPERTY(QString connectionLabel READ connectionLabel NOTIFY stateChanged)
     Q_PROPERTY(QString message READ message NOTIFY messageChanged)
@@ -44,8 +45,10 @@ public:
     bool connected() const { return m_connected; }
     bool connecting() const { return m_connecting; }
     bool busy() const {
+        return m_scope->active() || controlBusy();
+    }
+    bool controlBusy() const {
         if(m_readOnConnect)return true;
-        if(m_scope->active())return true;
         for(const auto &request:m_pending) if(request.command!="@status") return true;
         return false;
     }

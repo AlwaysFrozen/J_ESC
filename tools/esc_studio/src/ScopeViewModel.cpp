@@ -176,5 +176,5 @@ QString ScopeViewModel::cursorText() const
     if(m_hasA)text.append(describe("A",m_a));
     if(m_hasB)text.append(describe("B",m_b));
     if(m_hasA && m_hasB)text.append(QStringLiteral("Δt = %1 ms").arg((m_b-m_a)*1000,0,'g',7));
-    return text.isEmpty()?QStringLiteral("左键放置 A 游标，右键放置 B；滚轮缩放，中键拖动时间轴。"):text.join('\n');
+    return text.isEmpty()?QStringLiteral("左键拖动平移，上下拖动切换手动 Y；滚轮缩放；单击左 / 右键放 A / B。"):text.join('\n');
 }

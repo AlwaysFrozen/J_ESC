@@ -16,6 +16,14 @@
 #include "hw_vesc_6_4.h"
 #endif
 
+/* NVIC_PRIORITYGROUP_4: all implemented bits select preemption priority.
+ * ADC owns the current-control deadline; no normal peripheral may share 0.
+ * Keep CubeMX's J_ESC.ioc priorities in sync with this policy. */
+#define BOARD_IRQ_PRIORITY_CURRENT                  (0U)
+#define BOARD_IRQ_PRIORITY_CONTROL                  (1U)
+#define BOARD_IRQ_PRIORITY_USB                      (2U)
+#define BOARD_IRQ_PRIORITY_PERIPHERAL               (3U)
+
 #define BOARD_CPU_CNT_TO_US(CNT)                    ((float)(CNT) * 1e6f / BOARD_CPU_FREQ)
 #define BOARD_MOTO_CNT_TO_US(CNT)                   ((float)(CNT) * 1e6f / BOARD_PWM_TIM_FREQ)
 

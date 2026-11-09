@@ -36,16 +36,16 @@ int main(int argc,char **argv)
     if(engine.rootObjects().isEmpty()) return 1;
     if(app.arguments().contains("--demo")) backend.openDemo();
     const int page=app.arguments().indexOf("--page");
-    if(page>=0 && page+1<app.arguments().size()) engine.rootObjects().first()->setProperty("selectedPage",app.arguments()[page+1].toInt());
+    if(page>=0 && page+1<app.arguments().size()) engine.rootObjects().first()->setProperty("selectedPage",qBound(0,app.arguments()[page+1].toInt(),7));
     const int replay=app.arguments().indexOf("--replay");
     const bool replayFile=replay>=0 && replay+1<app.arguments().size();
     if(replayFile) {
-        engine.rootObjects().first()->setProperty("selectedPage",8);
+        engine.rootObjects().first()->setProperty("selectedPage",7);
         backend.scope()->openRecording(QUrl::fromLocalFile(app.arguments()[replay+1]));
     }
     const bool scopeDemo=app.arguments().contains("--scope-demo") && app.arguments().contains("--demo");
     if(scopeDemo) {
-        engine.rootObjects().first()->setProperty("selectedPage",8);
+        engine.rootObjects().first()->setProperty("selectedPage",7);
         auto timer=new QTimer(&app);timer->setInterval(30);
         QObject::connect(timer,&QTimer::timeout,&app,[&,timer] {
             if(backend.connected() && !backend.busy()){timer->stop();backend.scope()->start();}
